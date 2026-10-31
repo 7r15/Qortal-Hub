@@ -3,6 +3,13 @@
 # Python 3.9 + libpython come from Debian main. For local Linux Docker package builds only; CI stays ubuntu-22.04.
 FROM debian:bullseye-slim
 
+# Debian 11 repositories moved to the archive after LTS ended.
+RUN printf '%s\n' \
+    'deb http://archive.debian.org/debian bullseye main' \
+    'deb http://archive.debian.org/debian-security bullseye-security main' \
+    > /etc/apt/sources.list \
+    && printf '%s\n' 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
+
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=UTC
 
