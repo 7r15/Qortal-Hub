@@ -1,6 +1,6 @@
 {
-  "appId": "org.qortal.Qortal-Hub",
-  "productName": "qortal-hub",
+  "appId": "org.qortal.Qortal-Hub-Chess-Test",
+  "productName": "Qortal Hub Chess Test",
   "copyright": "Copyright © 2021 - 2025 Qortal",
   "compression": "normal",
   "asar": true,
@@ -85,11 +85,11 @@
         "StartupWMClass": "qortal-hub"
       }
     },
-    "executableName": "qortal-hub",
+    "executableName": "qortal-hub-chess-test",
     "icon": "assets/png"
   },
   "appImage": {
-    "artifactName": "Qortal-Hub.${ext}"
+    "artifactName": "Qortal-Hub-Chess-Test-Linux-x64.${ext}"
   },
   "deb": {
     "artifactName": "Qortal-Hub-Setup.${ext}",

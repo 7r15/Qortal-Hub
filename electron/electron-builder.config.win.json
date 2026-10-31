@@ -1,6 +1,6 @@
 {
-  "appId": "org.qortal.Qortal-Hub",
-  "productName": "Qortal Hub",
+  "appId": "org.qortal.Qortal-Hub-Chess-Test",
+  "productName": "Qortal Hub Chess Test",
   "copyright": "Copyright © 2021 - 2025 Qortal",
   "compression": "normal",
   "asar": true,
@@ -71,7 +71,10 @@
   "win": {
     "legalTrademarks": "QORTAL.ORG",
     "icon": "assets/appIcon.ico",
-    "target": ["nsis", "portable"]
+    "target": ["portable"]
+  },
+  "portable": {
+    "artifactName": "Qortal-Hub-Chess-Test-Windows-x64.${ext}"
   },
   "nsis": {
     "artifactName": "Qortal-Hub-Setup-win64.${ext}",

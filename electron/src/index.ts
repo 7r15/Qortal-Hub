@@ -748,9 +748,7 @@ async function setupMultiInstanceUserData(
     installCertificateVerification(mainWindow.webContents.session);
   }
 
-  // Start update checks
-  checkForUpdates();
-  setInterval(checkForUpdates, 24 * 60 * 60 * 1000);
+  // This test build is distributed separately from official releases.
 
   powerMonitor.on('resume', () => {
     void recoverReticulumAfterWake('powerMonitor:resume');

@@ -1,0 +1,82 @@
+name: Chess spectator test builds
+
+on:
+  push:
+    branches:
+      - feature/chess-spectator-test-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64 portable
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Install renderer dependencies
+        run: npm ci
+      - name: Build renderer
+        run: npm run build
+      - name: Sync renderer to Electron
+        run: npx cap sync @capacitor-community/electron
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm ci
+      - name: Package test build
+        working-directory: electron
+        run: npm run electron:make-win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chess-test-windows-x64
+          path: electron/dist/Qortal-Hub-Chess-Test-Windows-x64.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Linux x64 AppImage
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Install renderer dependencies
+        run: npm ci
+      - name: Build renderer
+        run: npm run build
+      - name: Sync renderer to Electron
+        run: npx cap sync @capacitor-community/electron
+      - name: Build private transport
+        working-directory: electron
+        run: npm run build:private-transport
+      - name: Package test build on Debian 11
+        working-directory: electron
+        run: npm run electron:make-lin-docker-appimage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chess-test-linux-x64
+          path: electron/dist/Qortal-Hub-Chess-Test-Linux-x64.AppImage
+          if-no-files-found: error
+          retention-days: 7
