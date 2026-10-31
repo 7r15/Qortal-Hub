@@ -1,6 +1,6 @@
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, Stack, Typography, alpha } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import chessPieceSprite from '../../../assets/chess/cburnett-chess-pieces.svg';
 import {
   chessPieceKind,
@@ -41,6 +41,7 @@ type Props = {
   onSendChat: (text: string) => boolean;
   onTyping: (active: boolean) => void;
   resolvePlayerName?: (address: string) => string;
+  spectatorControls?: ReactNode;
 };
 
 const PIECE_SPRITE_COLUMN: Record<number, number> = {
@@ -212,7 +213,7 @@ const PlayerRow = ({
 
 export function ChessGameDialog({
   address, match, now, transportReady, onClose, onPlayMove, onRematch,
-  onResign, onRespond, onSendChat, onTyping, resolvePlayerName,
+  onResign, onRespond, onSendChat, onTyping, resolvePlayerName, spectatorControls,
 }: Props) {
   const [selectedFrom, setSelectedFrom] = useState<number | null>(null);
   const [selectionHint, setSelectionHint] = useState('');
@@ -379,6 +380,7 @@ export function ChessGameDialog({
           {!canShowBoard && <Box aria-hidden sx={gameModalDividerSx} />}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flex: 1, flexDirection: 'column', justifyContent: canShowBoard ? undefined : 'center', minHeight: 0, overflow: 'hidden', px: canShowBoard ? { xs: 2.5, md: '34px' } : { xs: 2.5, sm: '26px' }, pb: canShowBoard ? '10px !important' : '20px !important', pt: canShowBoard ? '0 !important' : '4px !important' }}>
+          {spectatorControls}
           {match.error && canShowBoard && <Alert severity="warning" sx={{ flex: '0 0 auto', mb: 1 }}>{friendlyGameStatus(match.error)}</Alert>}
           {!canShowBoard && (
             <Box sx={{ alignSelf: 'center', minHeight: 0, overflowY: 'auto', py: 1, textAlign: 'center', width: '100%' }}>

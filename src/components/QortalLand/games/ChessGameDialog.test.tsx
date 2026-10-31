@@ -4,6 +4,13 @@ import { createChessState, type ChessState } from './chess';
 import { ChessGameDialog } from './ChessGameDialog';
 import type { QortalLandGameMatchView } from './useQortalLandGame';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      key === 'group:qortal_land.games.chat.message_aria' ? 'Game chat message' : key,
+  }),
+}));
+
 const matchWith = (state: ChessState): QortalLandGameMatchView => ({
   game: 'chess', matchId: crypto.randomUUID(), roundId: crypto.randomUUID(),
   requesterAddress: 'Q-local', recipientAddress: 'Q-remote', requesterNonce: '11'.repeat(16),

@@ -918,6 +918,94 @@
       "title": "Bienvenue dans Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Ajouter un emoji",
+        "delivered": "Distribué",
+        "failed": "Échec",
+        "message_aria": "Message du chat de la partie",
+        "new_messages": "{{count}} nouveau message",
+        "new_messages_other": "{{count}} nouveaux messages",
+        "placeholder": "Écrivez un message...",
+        "private_aria": "Chat privé de la partie",
+        "private_description": "Temporaire - effacé à la fin de cette session privée",
+        "private_empty": "Les messages restent entre vous et {{opponent}}.",
+        "private_title": "Chat privé",
+        "search_emoji": "Rechercher des emojis",
+        "send": "Envoyer",
+        "send_aria": "Envoyer un message dans le chat de la partie",
+        "sending": "Envoi...",
+        "shared_aria": "Chat partagé de la partie",
+        "shared_description": "Visible par les joueurs et tous les spectateurs de cette partie",
+        "shared_empty": "Lancez la conversation de la partie.",
+        "shared_title": "Chat de la partie",
+        "temporary": "Temporaire",
+        "typing": "{{name}} écrit...",
+        "unavailable": "Chat indisponible"
+      },
+      "chess_spectator": {
+        "abandoned": "Partie abandonnée",
+        "black_player": "Noirs : {{name}}",
+        "board_aria": "Échiquier pour spectateurs",
+        "close": "Fermer la vue spectateur",
+        "draw": "Partie nulle",
+        "ended": "Partie terminée",
+        "square_aria": "Rangée {{row}}, colonne {{column}}",
+        "title": "Regarder les échecs",
+        "turn": "Au tour de {{name}}",
+        "white_player": "Blancs : {{name}}",
+        "winner": "{{name}} a gagné"
+      },
+      "errors": {
+        "chat_send_failed": "Le message du chat n'a pas pu être envoyé",
+        "command_failed": "La commande de jeu a échoué",
+        "do_not_disturb": "Ce joueur est en mode Ne pas déranger.",
+        "final_ack_mismatch": "L'accusé de réception de l'état final ne correspondait pas",
+        "final_state_mismatch": "L'état final du jeu ne correspondait pas",
+        "handshake_declined": "Le portefeuille a refusé la négociation du jeu",
+        "invalid_checkers_move": "Coup de dames invalide",
+        "invalid_chess_move": "Coup d'échecs invalide",
+        "invalid_connect_four_move": "Coup Qonnect Four invalide",
+        "invalid_event": "Événement de jeu invalide",
+        "invalid_recipient_nonce": "L'invitation acceptée ne contenait pas de nonce destinataire valide",
+        "invalid_rematch_nonce": "La réponse de revanche contenait un nonce invalide",
+        "invalid_snapshot_move": "Coup d'instantané invalide",
+        "invitation_declined": "Invitation refusée",
+        "move_ack_mismatch": "L'accusé de réception du coup ne correspondait pas à l'état local",
+        "move_failed": "Le coup a échoué",
+        "move_hash_mismatch": "Le hachage de l'état du coup ne correspondait pas",
+        "reconnecting": "La connexion privée au jeu a été interrompue. Reconnexion...",
+        "recovery_failed": "La session de jeu privée n'a pas pu être récupérée",
+        "rematch_declined": "Revanche refusée",
+        "snapshot_pending_hash_mismatch": "Le hachage du coup en attente de l'instantané ne correspondait pas",
+        "snapshot_pending_move_mismatch": "Le coup en attente de l'instantané ne correspondait pas",
+        "snapshot_sequence_mismatch": "La séquence de coups de l'instantané ne correspondait pas",
+        "snapshot_transcript_mismatch": "L'historique de l'instantané ne correspondait pas",
+        "transport_unavailable": "Le transport du jeu est indisponible",
+        "unexpected_handshake_request": "Une demande inattendue de signature de négociation du jeu a été refusée",
+        "unexpected_move_sequence": "Séquence de coups inattendue"
+      },
+      "player": {
+        "you": "Vous"
+      },
+      "spectators": {
+        "allow": "Autoriser les spectateurs",
+        "available": "{{player1}} et {{player2}} jouent aux échecs",
+        "disable": "Arrêter le partage",
+        "dismiss": "Ignorer",
+        "errors": {
+          "send": "La mise à jour des spectateurs n'a pas pu être envoyée",
+          "sequence": "Impossible de réserver une séquence d'événement spectateur",
+          "sign": "La mise à jour des spectateurs n'a pas pu être signée"
+        },
+        "sharing_off": "Les spectateurs sont désactivés pour cette partie",
+        "sharing_on": "Les spectateurs et le chat partagé sont activés",
+        "waiting_for_opponent": "En attente de l'autorisation de votre adversaire",
+        "watch": "Regarder"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} action",
     "actions_badge_other": "{{count}} actions",

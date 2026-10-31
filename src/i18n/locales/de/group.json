@@ -918,6 +918,94 @@
       "title": "Willkommen bei Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Emoji hinzufügen",
+        "delivered": "Zugestellt",
+        "failed": "Fehlgeschlagen",
+        "message_aria": "Spielchat-Nachricht",
+        "new_messages": "{{count}} neue Nachricht",
+        "new_messages_other": "{{count}} neue Nachrichten",
+        "placeholder": "Nachricht...",
+        "private_aria": "Privater Spielchat",
+        "private_description": "Temporär - wird am Ende dieser privaten Sitzung gelöscht",
+        "private_empty": "Nachrichten bleiben zwischen dir und {{opponent}}.",
+        "private_title": "Privater Chat",
+        "search_emoji": "Emojis suchen",
+        "send": "Senden",
+        "send_aria": "Spielchat-Nachricht senden",
+        "sending": "Wird gesendet...",
+        "shared_aria": "Gemeinsamer Spielchat",
+        "shared_description": "Für die Spieler und alle Zuschauer dieses Spiels sichtbar",
+        "shared_empty": "Starte die Unterhaltung zum Spiel.",
+        "shared_title": "Spielchat",
+        "temporary": "Temporär",
+        "typing": "{{name}} schreibt...",
+        "unavailable": "Chat nicht verfügbar"
+      },
+      "chess_spectator": {
+        "abandoned": "Spiel abgebrochen",
+        "black_player": "Schwarz: {{name}}",
+        "board_aria": "Schachbrett für Zuschauer",
+        "close": "Zuschaueransicht schließen",
+        "draw": "Remis",
+        "ended": "Spiel beendet",
+        "square_aria": "Reihe {{row}}, Spalte {{column}}",
+        "title": "Schach zuschauen",
+        "turn": "{{name}} ist am Zug",
+        "white_player": "Weiß: {{name}}",
+        "winner": "{{name}} hat gewonnen"
+      },
+      "errors": {
+        "chat_send_failed": "Die Chatnachricht konnte nicht gesendet werden",
+        "command_failed": "Spielbefehl fehlgeschlagen",
+        "do_not_disturb": "Dieser Spieler ist im Modus Nicht stören.",
+        "final_ack_mismatch": "Die Bestätigung des endgültigen Spielstands stimmte nicht überein",
+        "final_state_mismatch": "Der endgültige Spielstand stimmte nicht überein",
+        "handshake_declined": "Die Wallet hat den Spiel-Handshake abgelehnt",
+        "invalid_checkers_move": "Ungültiger Damezug",
+        "invalid_chess_move": "Ungültiger Schachzug",
+        "invalid_connect_four_move": "Ungültiger Qonnect-Four-Zug",
+        "invalid_event": "Ungültiges Spielereignis",
+        "invalid_recipient_nonce": "Die angenommene Einladung enthielt keine gültige Empfänger-Nonce",
+        "invalid_rematch_nonce": "Die Antwort zur Revanche enthielt eine ungültige Nonce",
+        "invalid_snapshot_move": "Ungültiger Zug im Schnappschuss",
+        "invitation_declined": "Einladung abgelehnt",
+        "move_ack_mismatch": "Die Zugbestätigung stimmte nicht mit dem lokalen Stand überein",
+        "move_failed": "Zug fehlgeschlagen",
+        "move_hash_mismatch": "Hash des Zugstands stimmte nicht überein",
+        "reconnecting": "Die private Spielverbindung wurde unterbrochen. Verbindung wird wiederhergestellt...",
+        "recovery_failed": "Die private Spielsitzung konnte nicht wiederhergestellt werden",
+        "rematch_declined": "Revanche abgelehnt",
+        "snapshot_pending_hash_mismatch": "Hash des ausstehenden Schnappschusszugs stimmte nicht überein",
+        "snapshot_pending_move_mismatch": "Ausstehender Schnappschusszug stimmte nicht überein",
+        "snapshot_sequence_mismatch": "Zugfolge des Schnappschusses stimmte nicht überein",
+        "snapshot_transcript_mismatch": "Schnappschussprotokoll stimmte nicht überein",
+        "transport_unavailable": "Spielübertragung ist nicht verfügbar",
+        "unexpected_handshake_request": "Unerwartete Signaturanfrage für den Spiel-Handshake wurde abgelehnt",
+        "unexpected_move_sequence": "Unerwartete Zugfolge"
+      },
+      "player": {
+        "you": "Du"
+      },
+      "spectators": {
+        "allow": "Zuschauer erlauben",
+        "available": "{{player1}} und {{player2}} spielen Schach",
+        "disable": "Freigabe beenden",
+        "dismiss": "Ausblenden",
+        "errors": {
+          "send": "Das Zuschauer-Update konnte nicht gesendet werden",
+          "sequence": "Ereignisfolge für Zuschauer konnte nicht reserviert werden",
+          "sign": "Das Zuschauer-Update konnte nicht signiert werden"
+        },
+        "sharing_off": "Zuschauer sind für dieses Spiel deaktiviert",
+        "sharing_on": "Zuschauer und gemeinsamer Spielchat sind aktiviert",
+        "waiting_for_opponent": "Warte darauf, dass dein Gegner Zuschauer erlaubt",
+        "watch": "Zuschauen"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} aktion",
     "actions_badge_other": "{{count}} aktionen",

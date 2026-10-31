@@ -918,6 +918,94 @@
       "title": "Te damos la bienvenida a Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Añadir emoji",
+        "delivered": "Entregado",
+        "failed": "Fallido",
+        "message_aria": "Mensaje del chat de la partida",
+        "new_messages": "{{count}} mensaje nuevo",
+        "new_messages_other": "{{count}} mensajes nuevos",
+        "placeholder": "Mensaje...",
+        "private_aria": "Chat privado de la partida",
+        "private_description": "Temporal: se borra al terminar esta sesión privada",
+        "private_empty": "Los mensajes quedan entre tú y {{opponent}}.",
+        "private_title": "Chat privado",
+        "search_emoji": "Buscar emojis",
+        "send": "Enviar",
+        "send_aria": "Enviar mensaje al chat de la partida",
+        "sending": "Enviando...",
+        "shared_aria": "Chat compartido de la partida",
+        "shared_description": "Visible para los jugadores y todos los espectadores de esta partida",
+        "shared_empty": "Inicia la conversación de la partida.",
+        "shared_title": "Chat de la partida",
+        "temporary": "Temporal",
+        "typing": "{{name}} está escribiendo...",
+        "unavailable": "Chat no disponible"
+      },
+      "chess_spectator": {
+        "abandoned": "Partida abandonada",
+        "black_player": "Negras: {{name}}",
+        "board_aria": "Tablero de ajedrez para espectadores",
+        "close": "Cerrar vista de espectador",
+        "draw": "Tablas",
+        "ended": "Partida terminada",
+        "square_aria": "Fila {{row}}, columna {{column}}",
+        "title": "Viendo ajedrez",
+        "turn": "Turno de {{name}}",
+        "white_player": "Blancas: {{name}}",
+        "winner": "{{name}} ganó"
+      },
+      "errors": {
+        "chat_send_failed": "No se pudo enviar el mensaje del chat",
+        "command_failed": "Falló el comando del juego",
+        "do_not_disturb": "Este jugador está en modo No molestar.",
+        "final_ack_mismatch": "La confirmación del estado final no coincidió",
+        "final_state_mismatch": "El estado final del juego no coincidió",
+        "handshake_declined": "La cartera rechazó el saludo del juego",
+        "invalid_checkers_move": "Movimiento de damas no válido",
+        "invalid_chess_move": "Movimiento de ajedrez no válido",
+        "invalid_connect_four_move": "Movimiento de Qonnect Four no válido",
+        "invalid_event": "Evento de juego no válido",
+        "invalid_recipient_nonce": "La invitación aceptada no incluía un nonce de destinatario válido",
+        "invalid_rematch_nonce": "La respuesta de revancha contenía un nonce no válido",
+        "invalid_snapshot_move": "Movimiento de instantánea no válido",
+        "invitation_declined": "Invitación rechazada",
+        "move_ack_mismatch": "La confirmación del movimiento no coincidió con el estado local",
+        "move_failed": "El movimiento falló",
+        "move_hash_mismatch": "El hash del estado del movimiento no coincidió",
+        "reconnecting": "Se interrumpió la conexión privada del juego. Reconectando...",
+        "recovery_failed": "No se pudo recuperar la sesión privada del juego",
+        "rematch_declined": "Revancha rechazada",
+        "snapshot_pending_hash_mismatch": "El hash del movimiento pendiente de la instantánea no coincidió",
+        "snapshot_pending_move_mismatch": "El movimiento pendiente de la instantánea no coincidió",
+        "snapshot_sequence_mismatch": "La secuencia de movimientos de la instantánea no coincidió",
+        "snapshot_transcript_mismatch": "El registro de la instantánea no coincidió",
+        "transport_unavailable": "El transporte del juego no está disponible",
+        "unexpected_handshake_request": "Se rechazó una solicitud inesperada de firma del saludo del juego",
+        "unexpected_move_sequence": "Secuencia de movimientos inesperada"
+      },
+      "player": {
+        "you": "Tú"
+      },
+      "spectators": {
+        "allow": "Permitir espectadores",
+        "available": "{{player1}} y {{player2}} están jugando al ajedrez",
+        "disable": "Dejar de compartir",
+        "dismiss": "Descartar",
+        "errors": {
+          "send": "No se pudo enviar la actualización para espectadores",
+          "sequence": "No se pudo reservar una secuencia de eventos para espectadores",
+          "sign": "No se pudo firmar la actualización para espectadores"
+        },
+        "sharing_off": "Los espectadores están desactivados para esta partida",
+        "sharing_on": "Los espectadores y el chat compartido están activados",
+        "waiting_for_opponent": "Esperando a que tu oponente permita espectadores",
+        "watch": "Ver"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} acción",
     "actions_badge_other": "{{count}} acciones",

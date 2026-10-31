@@ -918,6 +918,94 @@
       "title": "Tervetuloa Qortal Hubiin"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Lisää emoji",
+        "delivered": "Toimitettu",
+        "failed": "Epäonnistui",
+        "message_aria": "Pelikeskustelun viesti",
+        "new_messages": "{{count}} uusi viesti",
+        "new_messages_other": "{{count}} uutta viestiä",
+        "placeholder": "Viesti...",
+        "private_aria": "Yksityinen pelikeskustelu",
+        "private_description": "Väliaikainen - tyhjennetään yksityisen istunnon päättyessä",
+        "private_empty": "Viestit pysyvät sinun ja käyttäjän {{opponent}} välisinä.",
+        "private_title": "Yksityinen keskustelu",
+        "search_emoji": "Hae emojeita",
+        "send": "Lähetä",
+        "send_aria": "Lähetä pelikeskustelun viesti",
+        "sending": "Lähetetään...",
+        "shared_aria": "Jaettu pelikeskustelu",
+        "shared_description": "Näkyy pelaajille ja kaikille tämän ottelun katsojille",
+        "shared_empty": "Aloita ottelukeskustelu.",
+        "shared_title": "Ottelukeskustelu",
+        "temporary": "Väliaikainen",
+        "typing": "{{name}} kirjoittaa...",
+        "unavailable": "Keskustelu ei ole käytettävissä"
+      },
+      "chess_spectator": {
+        "abandoned": "Peli hylättiin",
+        "black_player": "Musta: {{name}}",
+        "board_aria": "Katsojan shakkilauta",
+        "close": "Sulje katsojanäkymä",
+        "draw": "Tasapeli",
+        "ended": "Peli päättyi",
+        "square_aria": "Rivi {{row}}, sarake {{column}}",
+        "title": "Shakin katselu",
+        "turn": "Pelaajan {{name}} vuoro",
+        "white_player": "Valkoinen: {{name}}",
+        "winner": "{{name}} voitti"
+      },
+      "errors": {
+        "chat_send_failed": "Keskusteluviestiä ei voitu lähettää",
+        "command_failed": "Pelikomento epäonnistui",
+        "do_not_disturb": "Tämä pelaaja on Älä häiritse -tilassa.",
+        "final_ack_mismatch": "Pelin lopputilan vahvistus ei täsmännyt",
+        "final_state_mismatch": "Pelin lopputila ei täsmännyt",
+        "handshake_declined": "Lompakko hylkäsi pelin kättelyn",
+        "invalid_checkers_move": "Virheellinen tammisiirto",
+        "invalid_chess_move": "Virheellinen shakkisiirto",
+        "invalid_connect_four_move": "Virheellinen Qonnect Four -siirto",
+        "invalid_event": "Virheellinen pelitapahtuma",
+        "invalid_recipient_nonce": "Hyväksytty kutsu ei sisältänyt kelvollista vastaanottajan nonce-arvoa",
+        "invalid_rematch_nonce": "Uusintaottelun vastaus sisälsi virheellisen nonce-arvon",
+        "invalid_snapshot_move": "Virheellinen tilannekuvan siirto",
+        "invitation_declined": "Kutsu hylättiin",
+        "move_ack_mismatch": "Siirron vahvistus ei vastannut paikallista tilaa",
+        "move_failed": "Siirto epäonnistui",
+        "move_hash_mismatch": "Siirron tilatiiviste ei täsmännyt",
+        "reconnecting": "Yksityinen peliyhteys katkesi. Yhdistetään uudelleen...",
+        "recovery_failed": "Yksityistä peli-istuntoa ei voitu palauttaa",
+        "rematch_declined": "Uusintaottelu hylättiin",
+        "snapshot_pending_hash_mismatch": "Tilannekuvan odottavan siirron tiiviste ei täsmännyt",
+        "snapshot_pending_move_mismatch": "Tilannekuvan odottava siirto ei täsmännyt",
+        "snapshot_sequence_mismatch": "Tilannekuvan siirtojärjestys ei täsmännyt",
+        "snapshot_transcript_mismatch": "Tilannekuvan siirtoloki ei täsmännyt",
+        "transport_unavailable": "Peliyhteys ei ole käytettävissä",
+        "unexpected_handshake_request": "Odottamaton pelin kättelyn allekirjoituspyyntö hylättiin",
+        "unexpected_move_sequence": "Odottamaton siirtojärjestys"
+      },
+      "player": {
+        "you": "Sinä"
+      },
+      "spectators": {
+        "allow": "Salli katsojat",
+        "available": "{{player1}} ja {{player2}} pelaavat shakkia",
+        "disable": "Lopeta jakaminen",
+        "dismiss": "Ohita",
+        "errors": {
+          "send": "Katsojapäivitystä ei voitu lähettää",
+          "sequence": "Katsojatapahtuman järjestystä ei voitu varata",
+          "sign": "Katsojapäivitystä ei voitu allekirjoittaa"
+        },
+        "sharing_off": "Katsojat eivät ole käytössä tässä pelissä",
+        "sharing_on": "Katsojat ja jaettu ottelukeskustelu ovat käytössä",
+        "waiting_for_opponent": "Odotetaan, että vastustajasi sallii katsojat",
+        "watch": "Katso"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} toimenpide",
     "actions_badge_other": "{{count}} toimenpidettä",

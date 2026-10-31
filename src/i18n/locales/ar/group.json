@@ -918,6 +918,94 @@
       "title": "مرحبًا بك في Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "إضافة رمز تعبيري",
+        "delivered": "تم التسليم",
+        "failed": "فشل",
+        "message_aria": "رسالة دردشة اللعبة",
+        "new_messages": "{{count}} رسالة جديدة",
+        "new_messages_other": "{{count}} رسائل جديدة",
+        "placeholder": "اكتب رسالة...",
+        "private_aria": "دردشة لعبة خاصة",
+        "private_description": "مؤقتة - تُمسح عند انتهاء هذه الجلسة الخاصة",
+        "private_empty": "تبقى الرسائل بينك وبين {{opponent}}.",
+        "private_title": "دردشة خاصة",
+        "search_emoji": "البحث عن رموز تعبيرية",
+        "send": "إرسال",
+        "send_aria": "إرسال رسالة دردشة اللعبة",
+        "sending": "جارٍ الإرسال...",
+        "shared_aria": "دردشة لعبة مشتركة",
+        "shared_description": "مرئية للاعبين ولكل من يشاهد هذه المباراة",
+        "shared_empty": "ابدأ محادثة المباراة.",
+        "shared_title": "دردشة المباراة",
+        "temporary": "مؤقتة",
+        "typing": "{{name}} يكتب...",
+        "unavailable": "الدردشة غير متاحة"
+      },
+      "chess_spectator": {
+        "abandoned": "تم التخلي عن اللعبة",
+        "black_player": "الأسود: {{name}}",
+        "board_aria": "رقعة شطرنج للمشاهد",
+        "close": "إغلاق عرض المشاهدة",
+        "draw": "تعادل",
+        "ended": "انتهت اللعبة",
+        "square_aria": "الصف {{row}}، العمود {{column}}",
+        "title": "مشاهدة الشطرنج",
+        "turn": "دور {{name}}",
+        "white_player": "الأبيض: {{name}}",
+        "winner": "فاز {{name}}"
+      },
+      "errors": {
+        "chat_send_failed": "تعذر إرسال رسالة الدردشة",
+        "command_failed": "فشل أمر اللعبة",
+        "do_not_disturb": "هذا اللاعب في وضع عدم الإزعاج.",
+        "final_ack_mismatch": "تأكيد حالة اللعبة النهائية غير متطابق",
+        "final_state_mismatch": "حالة اللعبة النهائية غير متطابقة",
+        "handshake_declined": "رفضت المحفظة مصافحة اللعبة",
+        "invalid_checkers_move": "نقلة الداما غير صالحة",
+        "invalid_chess_move": "نقلة الشطرنج غير صالحة",
+        "invalid_connect_four_move": "نقلة Qonnect Four غير صالحة",
+        "invalid_event": "حدث لعبة غير صالح",
+        "invalid_recipient_nonce": "لم تتضمن الدعوة المقبولة قيمة مستلم صالحة",
+        "invalid_rematch_nonce": "تضمنت استجابة إعادة المباراة قيمة غير صالحة",
+        "invalid_snapshot_move": "نقلة اللقطة غير صالحة",
+        "invitation_declined": "تم رفض الدعوة",
+        "move_ack_mismatch": "تأكيد النقلة لا يطابق الحالة المحلية",
+        "move_failed": "فشلت النقلة",
+        "move_hash_mismatch": "بصمة حالة النقلة غير متطابقة",
+        "reconnecting": "انقطع اتصال اللعبة الخاصة. جارٍ إعادة الاتصال...",
+        "recovery_failed": "تعذر استعادة جلسة اللعبة الخاصة",
+        "rematch_declined": "تم رفض إعادة المباراة",
+        "snapshot_pending_hash_mismatch": "بصمة النقلة المعلقة في اللقطة غير متطابقة",
+        "snapshot_pending_move_mismatch": "النقلة المعلقة في اللقطة غير متطابقة",
+        "snapshot_sequence_mismatch": "تسلسل نقلات اللقطة غير متطابق",
+        "snapshot_transcript_mismatch": "سجل اللقطة غير متطابق",
+        "transport_unavailable": "نقل اللعبة غير متاح",
+        "unexpected_handshake_request": "تم رفض طلب توقيع مصافحة لعبة غير متوقع",
+        "unexpected_move_sequence": "تسلسل نقلات غير متوقع"
+      },
+      "player": {
+        "you": "أنت"
+      },
+      "spectators": {
+        "allow": "السماح للمشاهدين",
+        "available": "يلعب {{player1}} و{{player2}} الشطرنج",
+        "disable": "إيقاف المشاركة",
+        "dismiss": "تجاهل",
+        "errors": {
+          "send": "تعذر إرسال تحديث المشاهدين",
+          "sequence": "تعذر حجز تسلسل حدث للمشاهدين",
+          "sign": "تعذر توقيع تحديث المشاهدين"
+        },
+        "sharing_off": "المشاهدون معطلون لهذه اللعبة",
+        "sharing_on": "تم تفعيل المشاهدين ودردشة المباراة المشتركة",
+        "waiting_for_opponent": "بانتظار سماح خصمك للمشاهدين",
+        "watch": "مشاهدة"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} إجراء",
     "actions_badge_other": "{{count}} إجراءات",

@@ -918,6 +918,94 @@
       "title": "Добро пожаловать в Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Добавить эмодзи",
+        "delivered": "Доставлено",
+        "failed": "Ошибка",
+        "message_aria": "Сообщение игрового чата",
+        "new_messages": "{{count}} новое сообщение",
+        "new_messages_other": "{{count}} новых сообщений",
+        "placeholder": "Сообщение...",
+        "private_aria": "Приватный игровой чат",
+        "private_description": "Временный - очищается после завершения приватного сеанса",
+        "private_empty": "Сообщения видны только вам и {{opponent}}.",
+        "private_title": "Приватный чат",
+        "search_emoji": "Поиск эмодзи",
+        "send": "Отправить",
+        "send_aria": "Отправить сообщение в игровой чат",
+        "sending": "Отправка...",
+        "shared_aria": "Общий игровой чат",
+        "shared_description": "Виден игрокам и всем зрителям этого матча",
+        "shared_empty": "Начните обсуждение матча.",
+        "shared_title": "Чат матча",
+        "temporary": "Временный",
+        "typing": "{{name}} печатает...",
+        "unavailable": "Чат недоступен"
+      },
+      "chess_spectator": {
+        "abandoned": "Игра прервана",
+        "black_player": "Чёрные: {{name}}",
+        "board_aria": "Шахматная доска для зрителей",
+        "close": "Закрыть режим зрителя",
+        "draw": "Ничья",
+        "ended": "Игра окончена",
+        "square_aria": "Ряд {{row}}, столбец {{column}}",
+        "title": "Просмотр шахмат",
+        "turn": "Ход игрока {{name}}",
+        "white_player": "Белые: {{name}}",
+        "winner": "{{name}} победил"
+      },
+      "errors": {
+        "chat_send_failed": "Не удалось отправить сообщение чата",
+        "command_failed": "Не удалось выполнить игровую команду",
+        "do_not_disturb": "Этот игрок находится в режиме Не беспокоить.",
+        "final_ack_mismatch": "Подтверждение финального состояния игры не совпало",
+        "final_state_mismatch": "Финальное состояние игры не совпало",
+        "handshake_declined": "Кошелёк отклонил игровое рукопожатие",
+        "invalid_checkers_move": "Недопустимый ход в шашках",
+        "invalid_chess_move": "Недопустимый шахматный ход",
+        "invalid_connect_four_move": "Недопустимый ход в Qonnect Four",
+        "invalid_event": "Недопустимое игровое событие",
+        "invalid_recipient_nonce": "Принятое приглашение не содержало допустимый nonce получателя",
+        "invalid_rematch_nonce": "Ответ на повторный матч содержал недопустимый nonce",
+        "invalid_snapshot_move": "Недопустимый ход в снимке",
+        "invitation_declined": "Приглашение отклонено",
+        "move_ack_mismatch": "Подтверждение хода не совпало с локальным состоянием",
+        "move_failed": "Не удалось выполнить ход",
+        "move_hash_mismatch": "Хэш состояния хода не совпал",
+        "reconnecting": "Приватное игровое соединение прервано. Повторное подключение...",
+        "recovery_failed": "Не удалось восстановить приватный игровой сеанс",
+        "rematch_declined": "Повторный матч отклонён",
+        "snapshot_pending_hash_mismatch": "Хэш ожидающего хода в снимке не совпал",
+        "snapshot_pending_move_mismatch": "Ожидающий ход в снимке не совпал",
+        "snapshot_sequence_mismatch": "Последовательность ходов в снимке не совпала",
+        "snapshot_transcript_mismatch": "Протокол снимка не совпал",
+        "transport_unavailable": "Игровой транспорт недоступен",
+        "unexpected_handshake_request": "Неожиданный запрос подписи игрового рукопожатия отклонён",
+        "unexpected_move_sequence": "Неожиданная последовательность ходов"
+      },
+      "player": {
+        "you": "Вы"
+      },
+      "spectators": {
+        "allow": "Разрешить зрителей",
+        "available": "{{player1}} и {{player2}} играют в шахматы",
+        "disable": "Прекратить показ",
+        "dismiss": "Скрыть",
+        "errors": {
+          "send": "Не удалось отправить обновление для зрителей",
+          "sequence": "Не удалось зарезервировать последовательность события зрителей",
+          "sign": "Не удалось подписать обновление для зрителей"
+        },
+        "sharing_off": "Зрители отключены для этой игры",
+        "sharing_on": "Зрители и общий чат матча включены",
+        "waiting_for_opponent": "Ожидание разрешения зрителей от соперника",
+        "watch": "Смотреть"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} действие",
     "actions_badge_other": "{{count}} действий",

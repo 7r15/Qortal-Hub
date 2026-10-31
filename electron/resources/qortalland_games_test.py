@@ -1252,6 +1252,81 @@ class QortalLandGameProtocolTest(unittest.TestCase):
         self.assertEqual(state["phase"], "active")
         self.assertEqual(events[-1][1]["code"], "chat_error")
 
+    def test_spectator_permission_is_validated_and_forwarded(self):
+        manager, events = self.make_manager()
+
+        class Channel:
+            def __init__(self):
+                self.messages = []
+
+            def send(self, message):
+                self.messages.append(message.payload)
+                return object()
+
+        match_id = "00112233-4455-6677-8899-aabbccddeeff"
+        message_id = "10000000-0000-4000-8000-000000000030"
+        channel = Channel()
+        state = {
+            "matchId": match_id,
+            "roundId": match_id,
+            "phase": "active",
+            "channel": channel,
+            "lastRx": time.time(),
+        }
+        manager.matches[match_id] = state
+
+        manager._send_active({
+            "matchId": match_id,
+            "message": {
+                "type": "SPECTATOR_PERMISSION",
+                "messageId": message_id,
+                "roundId": match_id,
+                "enabled": True,
+            },
+        })
+        self.assertEqual(channel.messages[-1]["m"]["enabled"], True)
+        self.assertEqual(channel.messages[-1]["m"]["roundId"], match_id)
+
+        manager._on_channel(match_id, GameMessage(channel.messages[-1]))
+        self.assertEqual(events[-1][0], "GAME_MESSAGE")
+        self.assertEqual(events[-1][1]["message"]["type"], "SPECTATOR_PERMISSION")
+
+        # A delayed opt-in from the previous round cannot enable the new one.
+        stale = dict(channel.messages[-1])
+        stale["m"] = dict(stale["m"], roundId="20000000-0000-4000-8000-000000000030")
+        count = len(events)
+        manager._on_channel(match_id, GameMessage(stale))
+        self.assertEqual(len(events), count)
+
+        with self.assertRaisesRegex(ValueError, "invalid_spectator_permission"):
+            manager._send_active({
+                "matchId": match_id,
+                "message": {
+                    "type": "SPECTATOR_PERMISSION",
+                    "messageId": message_id,
+                    "enabled": "yes",
+                },
+            })
+
+        invalid_inbound = dict(channel.messages[-1])
+        invalid_inbound["m"] = dict(invalid_inbound["m"], messageId="not-a-uuid")
+        manager._on_channel(match_id, GameMessage(invalid_inbound))
+        protocol_error = next(event for event in events if event[0] == "GAME_ERROR")
+        self.assertEqual(protocol_error[1]["message"], "invalid_spectator_permission")
+
+    def test_heartbeat_advertises_spectator_support_without_a_new_message_type(self):
+        manager, events = self.make_manager()
+        match_id = "00112233-4455-6677-8899-aabbccddeeff"
+        state = {"matchId": match_id, "roundId": match_id, "phase": "active"}
+        manager.matches[match_id] = state
+        with mock.patch.object(manager, "_send_game_payload") as send:
+            manager._on_channel(match_id, GameMessage({"k": "game", "m": {
+                "type": "MATCH_PING", "matchId": match_id,
+                "messageId": "10000000-0000-4000-8000-000000000030",
+            }}))
+        self.assertEqual(send.call_args.args[1]["type"], "MATCH_PONG")
+        self.assertEqual(send.call_args.args[1]["spectatorProtocol"], 1)
+
     def test_cancelled_invitation_releases_match_immediately(self):
         manager, events = self.make_manager()
         match_id = "00112233-4455-6677-8899-aabbccddeeff"

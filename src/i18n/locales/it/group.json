@@ -918,6 +918,94 @@
       "title": "Benvenuto in Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Aggiungi emoji",
+        "delivered": "Consegnato",
+        "failed": "Non riuscito",
+        "message_aria": "Messaggio della chat di gioco",
+        "new_messages": "{{count}} nuovo messaggio",
+        "new_messages_other": "{{count}} nuovi messaggi",
+        "placeholder": "Messaggio...",
+        "private_aria": "Chat privata di gioco",
+        "private_description": "Temporanea - cancellata al termine della sessione privata",
+        "private_empty": "I messaggi restano tra te e {{opponent}}.",
+        "private_title": "Chat privata",
+        "search_emoji": "Cerca emoji",
+        "send": "Invia",
+        "send_aria": "Invia messaggio nella chat di gioco",
+        "sending": "Invio...",
+        "shared_aria": "Chat di gioco condivisa",
+        "shared_description": "Visibile ai giocatori e a tutti gli spettatori della partita",
+        "shared_empty": "Avvia la conversazione della partita.",
+        "shared_title": "Chat della partita",
+        "temporary": "Temporanea",
+        "typing": "{{name}} sta scrivendo...",
+        "unavailable": "Chat non disponibile"
+      },
+      "chess_spectator": {
+        "abandoned": "Partita abbandonata",
+        "black_player": "Nero: {{name}}",
+        "board_aria": "Scacchiera per spettatori",
+        "close": "Chiudi vista spettatore",
+        "draw": "Patta",
+        "ended": "Partita terminata",
+        "square_aria": "Riga {{row}}, colonna {{column}}",
+        "title": "Stai guardando gli scacchi",
+        "turn": "Turno di {{name}}",
+        "white_player": "Bianco: {{name}}",
+        "winner": "{{name}} ha vinto"
+      },
+      "errors": {
+        "chat_send_failed": "Impossibile inviare il messaggio della chat",
+        "command_failed": "Comando di gioco non riuscito",
+        "do_not_disturb": "Questo giocatore è in modalità Non disturbare.",
+        "final_ack_mismatch": "La conferma dello stato finale non corrisponde",
+        "final_state_mismatch": "Lo stato finale del gioco non corrisponde",
+        "handshake_declined": "Il portafoglio ha rifiutato l'handshake del gioco",
+        "invalid_checkers_move": "Mossa di dama non valida",
+        "invalid_chess_move": "Mossa di scacchi non valida",
+        "invalid_connect_four_move": "Mossa Qonnect Four non valida",
+        "invalid_event": "Evento di gioco non valido",
+        "invalid_recipient_nonce": "L'invito accettato non includeva un nonce destinatario valido",
+        "invalid_rematch_nonce": "La risposta alla rivincita conteneva un nonce non valido",
+        "invalid_snapshot_move": "Mossa dell'istantanea non valida",
+        "invitation_declined": "Invito rifiutato",
+        "move_ack_mismatch": "La conferma della mossa non corrisponde allo stato locale",
+        "move_failed": "Mossa non riuscita",
+        "move_hash_mismatch": "L'hash dello stato della mossa non corrisponde",
+        "reconnecting": "La connessione privata del gioco è stata interrotta. Riconnessione...",
+        "recovery_failed": "Impossibile recuperare la sessione di gioco privata",
+        "rematch_declined": "Rivincita rifiutata",
+        "snapshot_pending_hash_mismatch": "L'hash della mossa in sospeso dell'istantanea non corrisponde",
+        "snapshot_pending_move_mismatch": "La mossa in sospeso dell'istantanea non corrisponde",
+        "snapshot_sequence_mismatch": "La sequenza di mosse dell'istantanea non corrisponde",
+        "snapshot_transcript_mismatch": "La cronologia dell'istantanea non corrisponde",
+        "transport_unavailable": "Il trasporto del gioco non è disponibile",
+        "unexpected_handshake_request": "È stata rifiutata una richiesta inattesa di firma dell'handshake del gioco",
+        "unexpected_move_sequence": "Sequenza di mosse inattesa"
+      },
+      "player": {
+        "you": "Tu"
+      },
+      "spectators": {
+        "allow": "Consenti spettatori",
+        "available": "{{player1}} e {{player2}} stanno giocando a scacchi",
+        "disable": "Interrompi condivisione",
+        "dismiss": "Ignora",
+        "errors": {
+          "send": "Impossibile inviare l'aggiornamento per gli spettatori",
+          "sequence": "Impossibile riservare una sequenza evento per gli spettatori",
+          "sign": "Impossibile firmare l'aggiornamento per gli spettatori"
+        },
+        "sharing_off": "Gli spettatori sono disattivati per questa partita",
+        "sharing_on": "Gli spettatori e la chat condivisa sono attivi",
+        "waiting_for_opponent": "In attesa che il tuo avversario consenta gli spettatori",
+        "watch": "Guarda"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} azione",
     "actions_badge_other": "{{count}} azioni",

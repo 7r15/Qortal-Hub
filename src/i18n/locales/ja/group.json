@@ -918,6 +918,94 @@
       "title": "Qortal Hubへようこそ"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "絵文字を追加",
+        "delivered": "配信済み",
+        "failed": "失敗",
+        "message_aria": "ゲームチャットのメッセージ",
+        "new_messages": "新しいメッセージ{{count}}件",
+        "new_messages_other": "新しいメッセージ{{count}}件",
+        "placeholder": "メッセージ...",
+        "private_aria": "非公開ゲームチャット",
+        "private_description": "一時的 - 非公開セッションの終了時に消去されます",
+        "private_empty": "メッセージはあなたと{{opponent}}だけに表示されます。",
+        "private_title": "非公開チャット",
+        "search_emoji": "絵文字を検索",
+        "send": "送信",
+        "send_aria": "ゲームチャットにメッセージを送信",
+        "sending": "送信中...",
+        "shared_aria": "共有ゲームチャット",
+        "shared_description": "プレイヤーとこの対局を観戦している全員に表示されます",
+        "shared_empty": "対局の会話を始めましょう。",
+        "shared_title": "対局チャット",
+        "temporary": "一時的",
+        "typing": "{{name}}が入力中...",
+        "unavailable": "チャットを利用できません"
+      },
+      "chess_spectator": {
+        "abandoned": "対局は放棄されました",
+        "black_player": "黒: {{name}}",
+        "board_aria": "観戦用チェス盤",
+        "close": "観戦ビューを閉じる",
+        "draw": "引き分け",
+        "ended": "対局終了",
+        "square_aria": "{{row}}行{{column}}列",
+        "title": "チェスを観戦中",
+        "turn": "{{name}}の手番",
+        "white_player": "白: {{name}}",
+        "winner": "{{name}}の勝ち"
+      },
+      "errors": {
+        "chat_send_failed": "チャットメッセージを送信できませんでした",
+        "command_failed": "ゲームコマンドに失敗しました",
+        "do_not_disturb": "このプレイヤーはおやすみモードです。",
+        "final_ack_mismatch": "最終ゲーム状態の確認が一致しませんでした",
+        "final_state_mismatch": "最終ゲーム状態が一致しませんでした",
+        "handshake_declined": "ウォレットがゲームのハンドシェイクを拒否しました",
+        "invalid_checkers_move": "無効なチェッカーの手です",
+        "invalid_chess_move": "無効なチェスの手です",
+        "invalid_connect_four_move": "無効なQonnect Fourの手です",
+        "invalid_event": "無効なゲームイベントです",
+        "invalid_recipient_nonce": "承認された招待に有効な受信者nonceがありません",
+        "invalid_rematch_nonce": "再戦の応答に無効なnonceが含まれています",
+        "invalid_snapshot_move": "無効なスナップショットの手です",
+        "invitation_declined": "招待が拒否されました",
+        "move_ack_mismatch": "手の確認がローカル状態と一致しませんでした",
+        "move_failed": "手の処理に失敗しました",
+        "move_hash_mismatch": "手の状態ハッシュが一致しませんでした",
+        "reconnecting": "非公開ゲーム接続が中断されました。再接続中...",
+        "recovery_failed": "非公開ゲームセッションを復元できませんでした",
+        "rematch_declined": "再戦が拒否されました",
+        "snapshot_pending_hash_mismatch": "スナップショットの保留中の手のハッシュが一致しませんでした",
+        "snapshot_pending_move_mismatch": "スナップショットの保留中の手が一致しませんでした",
+        "snapshot_sequence_mismatch": "スナップショットの手順が一致しませんでした",
+        "snapshot_transcript_mismatch": "スナップショットの棋譜が一致しませんでした",
+        "transport_unavailable": "ゲーム通信を利用できません",
+        "unexpected_handshake_request": "予期しないゲームハンドシェイク署名要求を拒否しました",
+        "unexpected_move_sequence": "予期しない手順です"
+      },
+      "player": {
+        "you": "あなた"
+      },
+      "spectators": {
+        "allow": "観戦を許可",
+        "available": "{{player1}}と{{player2}}がチェスを対局中",
+        "disable": "共有を停止",
+        "dismiss": "閉じる",
+        "errors": {
+          "send": "観戦者向け更新を送信できませんでした",
+          "sequence": "観戦イベントのシーケンスを予約できませんでした",
+          "sign": "観戦者向け更新に署名できませんでした"
+        },
+        "sharing_off": "この対局では観戦が無効です",
+        "sharing_on": "観戦と共有対局チャットが有効です",
+        "waiting_for_opponent": "相手が観戦を許可するのを待っています",
+        "watch": "観戦"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} 件",
     "actions_badge_other": "{{count}} 件",

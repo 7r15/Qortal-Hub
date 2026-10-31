@@ -918,6 +918,94 @@
       "title": "Tere tulemast Qortal Hubi"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Lisa emotikon",
+        "delivered": "Kohale toimetatud",
+        "failed": "Ebaõnnestus",
+        "message_aria": "Mänguvestluse sõnum",
+        "new_messages": "{{count}} uus sõnum",
+        "new_messages_other": "{{count}} uut sõnumit",
+        "placeholder": "Sõnum...",
+        "private_aria": "Privaatne mänguvestlus",
+        "private_description": "Ajutine - kustutatakse privaatse seansi lõppedes",
+        "private_empty": "Sõnumid jäävad sinu ja kasutaja {{opponent}} vahele.",
+        "private_title": "Privaatvestlus",
+        "search_emoji": "Otsi emotikone",
+        "send": "Saada",
+        "send_aria": "Saada mänguvestluse sõnum",
+        "sending": "Saatmine...",
+        "shared_aria": "Jagatud mänguvestlus",
+        "shared_description": "Nähtav mängijatele ja kõigile selle mängu vaatajatele",
+        "shared_empty": "Alusta mänguvestlust.",
+        "shared_title": "Mänguvestlus",
+        "temporary": "Ajutine",
+        "typing": "{{name}} kirjutab...",
+        "unavailable": "Vestlus pole saadaval"
+      },
+      "chess_spectator": {
+        "abandoned": "Mäng katkestati",
+        "black_player": "Must: {{name}}",
+        "board_aria": "Vaataja malelaud",
+        "close": "Sulge vaatajavaade",
+        "draw": "Viik",
+        "ended": "Mäng lõppes",
+        "square_aria": "Rida {{row}}, veerg {{column}}",
+        "title": "Male vaatamine",
+        "turn": "Käib {{name}}",
+        "white_player": "Valge: {{name}}",
+        "winner": "{{name}} võitis"
+      },
+      "errors": {
+        "chat_send_failed": "Vestlussõnumit ei saanud saata",
+        "command_failed": "Mängukäsk ebaõnnestus",
+        "do_not_disturb": "See mängija on režiimis Mitte segada.",
+        "final_ack_mismatch": "Mängu lõppoleku kinnitus ei ühtinud",
+        "final_state_mismatch": "Mängu lõppolek ei ühtinud",
+        "handshake_declined": "Rahakott keeldus mängu käepigistusest",
+        "invalid_checkers_move": "Vigane kabekäik",
+        "invalid_chess_move": "Vigane malekäik",
+        "invalid_connect_four_move": "Vigane Qonnect Four käik",
+        "invalid_event": "Vigane mängusündmus",
+        "invalid_recipient_nonce": "Vastuvõetud kutse ei sisaldanud kehtivat saaja nonce'i",
+        "invalid_rematch_nonce": "Kordusmängu vastus sisaldas vigast nonce'i",
+        "invalid_snapshot_move": "Vigane hetktõmmise käik",
+        "invitation_declined": "Kutse lükati tagasi",
+        "move_ack_mismatch": "Käigu kinnitus ei ühtinud kohaliku olekuga",
+        "move_failed": "Käik ebaõnnestus",
+        "move_hash_mismatch": "Käigu oleku räsi ei ühtinud",
+        "reconnecting": "Privaatne mänguühendus katkes. Ühendamine...",
+        "recovery_failed": "Privaatset mänguseanssi ei saanud taastada",
+        "rematch_declined": "Kordusmäng lükati tagasi",
+        "snapshot_pending_hash_mismatch": "Hetktõmmise ootel käigu räsi ei ühtinud",
+        "snapshot_pending_move_mismatch": "Hetktõmmise ootel käik ei ühtinud",
+        "snapshot_sequence_mismatch": "Hetktõmmise käigujärjestus ei ühtinud",
+        "snapshot_transcript_mismatch": "Hetktõmmise käigulogi ei ühtinud",
+        "transport_unavailable": "Mänguühendus pole saadaval",
+        "unexpected_handshake_request": "Ootamatu mängu käepigistuse allkirjastamistaotlus lükati tagasi",
+        "unexpected_move_sequence": "Ootamatu käigujärjestus"
+      },
+      "player": {
+        "you": "Sina"
+      },
+      "spectators": {
+        "allow": "Luba vaatajad",
+        "available": "{{player1}} ja {{player2}} mängivad malet",
+        "disable": "Lõpeta jagamine",
+        "dismiss": "Peida",
+        "errors": {
+          "send": "Vaatajate värskendust ei saanud saata",
+          "sequence": "Vaatajate sündmuse jada ei saanud reserveerida",
+          "sign": "Vaatajate värskendust ei saanud allkirjastada"
+        },
+        "sharing_off": "Vaatajad on selles mängus välja lülitatud",
+        "sharing_on": "Vaatajad ja jagatud mänguvestlus on sisse lülitatud",
+        "waiting_for_opponent": "Oodatakse, et vastane lubaks vaatajad",
+        "watch": "Vaata"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} toiming",
     "actions_badge_other": "{{count}} toimingut",

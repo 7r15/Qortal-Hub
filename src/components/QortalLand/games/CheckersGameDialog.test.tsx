@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import '../../../i18n/i18n';
 import { createCheckersState, type CheckersState } from './checkers';
 import { CheckersGameDialog } from './CheckersGameDialog';
 import type { QortalLandGameMatchView } from './useQortalLandGame';

@@ -918,6 +918,94 @@
       "title": "欢迎使用Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "添加表情符号",
+        "delivered": "已送达",
+        "failed": "失败",
+        "message_aria": "游戏聊天消息",
+        "new_messages": "{{count}} 条新消息",
+        "new_messages_other": "{{count}} 条新消息",
+        "placeholder": "消息...",
+        "private_aria": "私人游戏聊天",
+        "private_description": "临时聊天 - 私人会话结束时清除",
+        "private_empty": "消息仅在你和 {{opponent}} 之间显示。",
+        "private_title": "私人聊天",
+        "search_emoji": "搜索表情符号",
+        "send": "发送",
+        "send_aria": "发送游戏聊天消息",
+        "sending": "正在发送...",
+        "shared_aria": "共享游戏聊天",
+        "shared_description": "玩家和所有观看本场比赛的人都能看到",
+        "shared_empty": "开始比赛对话。",
+        "shared_title": "比赛聊天",
+        "temporary": "临时",
+        "typing": "{{name}} 正在输入...",
+        "unavailable": "聊天不可用"
+      },
+      "chess_spectator": {
+        "abandoned": "对局已放弃",
+        "black_player": "黑方：{{name}}",
+        "board_aria": "观战棋盘",
+        "close": "关闭观战视图",
+        "draw": "和棋",
+        "ended": "对局结束",
+        "square_aria": "第 {{row}} 行，第 {{column}} 列",
+        "title": "正在观看国际象棋",
+        "turn": "轮到 {{name}}",
+        "white_player": "白方：{{name}}",
+        "winner": "{{name}} 获胜"
+      },
+      "errors": {
+        "chat_send_failed": "无法发送聊天消息",
+        "command_failed": "游戏命令失败",
+        "do_not_disturb": "该玩家处于免打扰模式。",
+        "final_ack_mismatch": "最终游戏状态确认不匹配",
+        "final_state_mismatch": "最终游戏状态不匹配",
+        "handshake_declined": "钱包拒绝了游戏握手",
+        "invalid_checkers_move": "无效的跳棋走法",
+        "invalid_chess_move": "无效的国际象棋走法",
+        "invalid_connect_four_move": "无效的 Qonnect Four 走法",
+        "invalid_event": "无效的游戏事件",
+        "invalid_recipient_nonce": "接受的邀请未包含有效的接收者 nonce",
+        "invalid_rematch_nonce": "重赛响应包含无效的 nonce",
+        "invalid_snapshot_move": "无效的快照走法",
+        "invitation_declined": "邀请被拒绝",
+        "move_ack_mismatch": "走法确认与本地状态不匹配",
+        "move_failed": "走法失败",
+        "move_hash_mismatch": "走法状态哈希不匹配",
+        "reconnecting": "私人游戏连接已中断。正在重新连接...",
+        "recovery_failed": "无法恢复私人游戏会话",
+        "rematch_declined": "重赛被拒绝",
+        "snapshot_pending_hash_mismatch": "快照中待处理走法的哈希不匹配",
+        "snapshot_pending_move_mismatch": "快照中的待处理走法不匹配",
+        "snapshot_sequence_mismatch": "快照走法顺序不匹配",
+        "snapshot_transcript_mismatch": "快照棋谱不匹配",
+        "transport_unavailable": "游戏传输不可用",
+        "unexpected_handshake_request": "已拒绝意外的游戏握手签名请求",
+        "unexpected_move_sequence": "意外的走法顺序"
+      },
+      "player": {
+        "you": "你"
+      },
+      "spectators": {
+        "allow": "允许观战",
+        "available": "{{player1}} 和 {{player2}} 正在下国际象棋",
+        "disable": "停止共享",
+        "dismiss": "忽略",
+        "errors": {
+          "send": "无法发送观战更新",
+          "sequence": "无法预留观战事件序列",
+          "sign": "无法签署观战更新"
+        },
+        "sharing_off": "本局已关闭观战",
+        "sharing_on": "观战和共享比赛聊天已开启",
+        "waiting_for_opponent": "正在等待对手允许观战",
+        "watch": "观看"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} 项操作",
     "actions_badge_other": "{{count}} 项操作",

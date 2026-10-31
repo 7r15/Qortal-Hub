@@ -918,6 +918,94 @@
       "title": "Welcome to Qortal Hub"
     }
   },
+  "qortal_land": {
+    "games": {
+      "chat": {
+        "add_emoji": "Add emoji",
+        "delivered": "Delivered",
+        "failed": "Failed",
+        "message_aria": "Game chat message",
+        "new_messages": "{{count}} new message",
+        "new_messages_other": "{{count}} new messages",
+        "placeholder": "Message...",
+        "private_aria": "Private game chat",
+        "private_description": "Temporary - cleared when this private session ends",
+        "private_empty": "Messages stay between you and {{opponent}}.",
+        "private_title": "Private chat",
+        "search_emoji": "Search emojis",
+        "send": "Send",
+        "send_aria": "Send game chat message",
+        "sending": "Sending...",
+        "shared_aria": "Shared game chat",
+        "shared_description": "Visible to the players and everyone watching this match",
+        "shared_empty": "Start the match conversation.",
+        "shared_title": "Match chat",
+        "temporary": "Temporary",
+        "typing": "{{name}} is typing...",
+        "unavailable": "Chat unavailable"
+      },
+      "chess_spectator": {
+        "abandoned": "Game abandoned",
+        "black_player": "Black: {{name}}",
+        "board_aria": "Spectator chess board",
+        "close": "Close spectator view",
+        "draw": "Draw",
+        "ended": "Game ended",
+        "square_aria": "Row {{row}}, column {{column}}",
+        "title": "Watching Chess",
+        "turn": "{{name}}'s turn",
+        "white_player": "White: {{name}}",
+        "winner": "{{name}} won"
+      },
+      "errors": {
+        "chat_send_failed": "Chat message could not be sent",
+        "command_failed": "Game command failed",
+        "do_not_disturb": "This player is in Do Not Disturb mode.",
+        "final_ack_mismatch": "Final game acknowledgement did not match",
+        "final_state_mismatch": "Final game state did not match",
+        "handshake_declined": "Wallet declined the game handshake",
+        "invalid_checkers_move": "Invalid Checkers move",
+        "invalid_chess_move": "Invalid Chess move",
+        "invalid_connect_four_move": "Invalid Qonnect Four move",
+        "invalid_event": "Invalid game event",
+        "invalid_recipient_nonce": "Accepted invitation did not include a valid recipient nonce",
+        "invalid_rematch_nonce": "Rematch response contained an invalid nonce",
+        "invalid_snapshot_move": "Invalid snapshot move",
+        "invitation_declined": "Invitation declined",
+        "move_ack_mismatch": "Move acknowledgement did not match local state",
+        "move_failed": "Move failed",
+        "move_hash_mismatch": "Move state hash mismatch",
+        "reconnecting": "Private game connection interrupted. Reconnecting...",
+        "recovery_failed": "Private game session could not be recovered",
+        "rematch_declined": "Rematch declined",
+        "snapshot_pending_hash_mismatch": "Snapshot pending move hash mismatch",
+        "snapshot_pending_move_mismatch": "Snapshot pending move mismatch",
+        "snapshot_sequence_mismatch": "Snapshot move sequence mismatch",
+        "snapshot_transcript_mismatch": "Snapshot transcript mismatch",
+        "transport_unavailable": "Game transport is unavailable",
+        "unexpected_handshake_request": "Rejected an unexpected game handshake signature request",
+        "unexpected_move_sequence": "Unexpected move sequence"
+      },
+      "player": {
+        "you": "You"
+      },
+      "spectators": {
+        "allow": "Allow spectators",
+        "available": "{{player1}} and {{player2}} are playing Chess",
+        "disable": "Stop sharing",
+        "dismiss": "Dismiss",
+        "errors": {
+          "send": "The spectator update could not be sent",
+          "sequence": "Unable to reserve a spectator event sequence",
+          "sign": "Unable to sign the spectator update"
+        },
+        "sharing_off": "Spectators are off for this game",
+        "sharing_on": "Spectators and shared match chat are on",
+        "waiting_for_opponent": "Waiting for your opponent to allow spectators",
+        "watch": "Watch"
+      }
+    }
+  },
   "subscription": {
     "actions_badge_one": "{{count}} action",
     "actions_badge_other": "{{count}} actions",

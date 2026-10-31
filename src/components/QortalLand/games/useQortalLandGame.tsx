@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
+import { Alert, Button, Snackbar } from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../../i18n/i18n';
 import { appLockedAtom } from '../../../atoms/presence';
 import {
   applyConnectFourMove,
@@ -34,7 +37,22 @@ import {
   type ChessState,
 } from './chess';
 import { ChessGameDialog } from './ChessGameDialog';
-import type { GameChatMessage } from './GameSessionChat';
+import { ChessSpectatorDialog } from './ChessSpectatorDialog';
+import {
+  CHESS_SPECTATOR_SNAPSHOT_TTL_MS,
+  parseChessSpectatorEvent,
+  publishChessSpectatorEvent,
+  QORTAL_LAND_GAME_CHANNEL_ID,
+  recordChessSpectatorAttestation,
+  verifyChessSpectatorSnapshot,
+  type ChessSpectatorAttestations,
+  type ChessSpectatorChat,
+  type ChessSpectatorSnapshot,
+} from './chessSpectators';
+import {
+  GameSessionChatSharedContext,
+  type GameChatMessage,
+} from './GameSessionChat';
 import { qortalLandRealtime } from '../realtime/qortalLandRealtime';
 
 type Target = {
@@ -50,15 +68,17 @@ export type QortalLandGameMatchView = Omit<ConnectFourGameView, 'state' | 'moves
   game: QortalLandGameId;
   state?: QortalLandGameState;
   moves: QortalLandGameMove[];
+  spectatorsEnabled?: boolean;
 };
 type Match = QortalLandGameMatchView & {
   requesterSessionId?: string;
   recipientSessionId?: string;
   requesterDestinationHash?: string;
   recipientDestinationHash?: string;
+  localSpectatorsAllowed?: boolean;
+  remoteSpectatorsAllowed?: boolean;
+  remoteSpectatorsSupported?: boolean;
 };
-const GAME_RECONNECTING_ERROR = 'Private game connection interrupted. Reconnecting…';
-
 const isGameId = (value: unknown): value is QortalLandGameId =>
   value === 'connect-four' || value === 'checkers' || value === 'chess';
 
@@ -86,15 +106,15 @@ const hashGameState = (game: QortalLandGameId, state: QortalLandGameState) =>
 
 const applyGameMove = (game: QortalLandGameId, state: QortalLandGameState, seat: ConnectFourSeat, move: Record<string, unknown>): QortalLandGameState => {
   if (game === 'checkers') {
-    if (!Number.isInteger(move.from) || !Array.isArray(move.path)) throw new Error('Invalid Checkers move');
+    if (!Number.isInteger(move.from) || !Array.isArray(move.path)) throw new Error(i18n.t('group:qortal_land.games.errors.invalid_checkers_move'));
     return applyCheckersMove(state as CheckersState, seat, Number(move.from), move.path.map(Number));
   }
   if (game === 'chess') {
-    if (!Number.isInteger(move.from) || !Number.isInteger(move.to)) throw new Error('Invalid Chess move');
+    if (!Number.isInteger(move.from) || !Number.isInteger(move.to)) throw new Error(i18n.t('group:qortal_land.games.errors.invalid_chess_move'));
     const promotion = move.promotion === undefined ? undefined : Number(move.promotion) as ChessPromotion;
     return applyChessMove(state as ChessState, seat, Number(move.from), Number(move.to), promotion);
   }
-  if (!Number.isInteger(move.column)) throw new Error('Invalid Qonnect Four move');
+  if (!Number.isInteger(move.column)) throw new Error(i18n.t('group:qortal_land.games.errors.invalid_connect_four_move'));
   return applyConnectFourMove(state as ConnectFourState, seat, Number(move.column));
 };
 
@@ -125,6 +145,9 @@ const randomHex = (bytes: number): string => {
   crypto.getRandomValues(value);
   return Array.from(value, (part) => part.toString(16).padStart(2, '0')).join('');
 };
+
+const spectatorChatKey = (matchId: string, roundId: string) =>
+  `${matchId}:${roundId}`;
 
 const parseChatMessages = (value: unknown): GameChatMessage[] => (
   Array.isArray(value)
@@ -262,6 +285,8 @@ export function useQortalLandGame(options: Options) {
     onPlayerSeen,
     resolvePlayerName,
   } = options;
+  const { t } = useTranslation(['group']);
+  const reconnectingError = t('group:qortal_land.games.errors.reconnecting');
   const isAppLocked = useAtomValue(appLockedAtom);
   const [transportReady, setTransportReady] = useState(false);
   const [localDestinationHash, setLocalDestinationHash] = useState('');
@@ -274,6 +299,28 @@ export function useQortalLandGame(options: Options) {
   const typingSentRef = useRef(false);
   const typingTimerRef = useRef<number | null>(null);
   const doNotDisturbRef = useRef(doNotDisturb);
+  const spectatorAttestationsRef = useRef<ChessSpectatorAttestations>(new Map());
+  const spectatorMatchesRef = useRef(new Map<string, ChessSpectatorSnapshot>());
+  const spectatorClosedAtRef = useRef(new Map<string, number>());
+  const [spectatorMatches, setSpectatorMatches] = useState<ChessSpectatorSnapshot[]>([]);
+  const [spectatorChats, setSpectatorChats] = useState<Record<string, GameChatMessage[]>>({});
+  const [watchedMatchId, setWatchedMatchId] = useState<string | null>(null);
+  const [dismissedWatchMatchId, setDismissedWatchMatchId] = useState<string | null>(null);
+  const lastSharedMatchRef = useRef<{ matchId: string; roundId: string } | null>(null);
+  const spectatorContextRef = useRef('');
+
+  useEffect(() => {
+    spectatorContextRef.current = `${address}:${groupId}:${sessionId}`;
+    spectatorAttestationsRef.current.clear();
+    spectatorMatchesRef.current.clear();
+    spectatorClosedAtRef.current.clear();
+    setSpectatorMatches([]);
+    setSpectatorChats({});
+    setWatchedMatchId(null);
+    setDismissedWatchMatchId(null);
+    lastSharedMatchRef.current = null;
+    return () => { spectatorContextRef.current = ''; };
+  }, [address, groupId, sessionId]);
 
   useEffect(() => { matchRef.current = match; }, [match]);
   useEffect(() => {
@@ -318,6 +365,154 @@ export function useQortalLandGame(options: Options) {
     matchRef.current = next;
     setMatch(next);
   }, []);
+  const appendSpectatorChat = useCallback((chat: ChessSpectatorChat) => {
+    const chatKey = spectatorChatKey(chat.matchId, chat.roundId);
+    const message: GameChatMessage = {
+      messageId: chat.messageId,
+      authorAddress: chat.authorAddress,
+      authorName: resolvePlayerName?.(chat.authorAddress),
+      text: chat.text,
+      createdAt: chat.createdAt,
+      delivered: chat.delivered,
+      failed: chat.failed,
+    };
+    setSpectatorChats((current) => {
+      const previous = current[chatKey] || [];
+      if (previous.some((item) => item.messageId === message.messageId && item.authorAddress === message.authorAddress)) return current;
+      const next = [...previous, message]
+        .sort((left, right) => left.createdAt - right.createdAt)
+        .slice(-100);
+      const entries = Object.entries({ ...current, [chatKey]: next });
+      return Object.fromEntries(entries.slice(-20));
+    });
+    updateMatch((current) => {
+      if (
+        !current ||
+        current.matchId !== chat.matchId ||
+        current.roundId !== chat.roundId ||
+        !current.spectatorsEnabled ||
+        current.chatMessages.some((item) => item.messageId === message.messageId && item.authorAddress === message.authorAddress)
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        chatMessages: [...current.chatMessages, message]
+          .sort((left, right) => left.createdAt - right.createdAt)
+          .slice(-100),
+      };
+    });
+  }, [resolvePlayerName, updateMatch]);
+
+  const applySpectatorEvent = useCallback(async (rawEvent: unknown) => {
+    const context = `${address}:${groupId}:${sessionId}`;
+    if (spectatorContextRef.current !== context) return;
+    const parsed = parseChessSpectatorEvent(
+      rawEvent as Record<string, unknown>,
+      groupId
+    );
+    if (!parsed) return;
+    if (parsed.kind === 'chat') {
+      appendSpectatorChat(parsed.chat);
+      return;
+    }
+    if (parsed.kind === 'close') {
+      // Keep each author's revocation even when history delivers it before
+      // either board attestation. Unrelated members cannot revoke a player.
+      const closeKey = `${parsed.close.matchId}:${parsed.close.roundId}:${parsed.close.authorAddress}`;
+      spectatorClosedAtRef.current.set(
+        closeKey,
+        Math.max(parsed.close.timestamp, spectatorClosedAtRef.current.get(closeKey) || 0)
+      );
+      if (spectatorClosedAtRef.current.size > 128) {
+        const oldest = spectatorClosedAtRef.current.keys().next().value;
+        if (oldest) spectatorClosedAtRef.current.delete(oldest);
+      }
+      for (const [key, attestations] of spectatorAttestationsRef.current) {
+        if (key.startsWith(`${parsed.close.matchId}:${parsed.close.roundId}:`)) {
+          const previous = attestations.get(parsed.close.authorAddress);
+          if (previous && previous.timestamp <= parsed.close.timestamp) {
+            attestations.delete(parsed.close.authorAddress);
+          }
+        }
+      }
+      const existing = spectatorMatchesRef.current.get(parsed.close.matchId);
+      if (
+        !existing ||
+        existing.roundId !== parsed.close.roundId ||
+        existing.timestamp > parsed.close.timestamp ||
+        ![existing.requesterAddress, existing.recipientAddress].includes(
+          parsed.close.authorAddress
+        )
+      ) {
+        return;
+      }
+      spectatorMatchesRef.current.delete(parsed.close.matchId);
+      setSpectatorMatches([...spectatorMatchesRef.current.values()]);
+      setWatchedMatchId((current) =>
+        current === parsed.close.matchId ? null : current
+      );
+      return;
+    }
+    if (!(await verifyChessSpectatorSnapshot(parsed.snapshot))) return;
+    if (spectatorContextRef.current !== context) return;
+    const revokedAt = Math.max(...[
+      parsed.snapshot.requesterAddress, parsed.snapshot.recipientAddress,
+    ].map((player) => spectatorClosedAtRef.current.get(
+      `${parsed.snapshot.matchId}:${parsed.snapshot.roundId}:${player}`
+    ) || 0));
+    if (parsed.snapshot.timestamp <= revokedAt) return;
+    const snapshot = recordChessSpectatorAttestation(
+      spectatorAttestationsRef.current,
+      parsed.snapshot
+    );
+    if (!snapshot || snapshot.timestamp <= revokedAt) return;
+    const existing = spectatorMatchesRef.current.get(snapshot.matchId);
+    if (
+      existing &&
+      (existing.requesterAddress !== snapshot.requesterAddress ||
+        existing.recipientAddress !== snapshot.recipientAddress ||
+        existing.timestamp > snapshot.timestamp ||
+        (existing.roundId === snapshot.roundId &&
+          (existing.state.ply > snapshot.state.ply ||
+            (existing.phase === 'finished' && snapshot.phase !== 'finished'))))
+    ) {
+      return;
+    }
+    spectatorMatchesRef.current.set(snapshot.matchId, snapshot);
+    setSpectatorMatches(
+      [...spectatorMatchesRef.current.values()].sort(
+        (left, right) => right.timestamp - left.timestamp
+      )
+    );
+  }, [address, appendSpectatorChat, groupId, sessionId]);
+
+  useEffect(() => {
+    if (!enabled || !Number.isInteger(groupId) || groupId <= 0) return;
+    let cancelled = false;
+    const unsubscribe = window.reticulumChat?.onEvent?.(({ event }) => {
+      void applySpectatorEvent(event);
+    });
+    void window.reticulumChat
+      ?.getMessageHistory?.(groupId, QORTAL_LAND_GAME_CHANNEL_ID, 300, {
+        repairNetwork: false,
+      })
+      .then(async (history) => {
+        if (cancelled || !Array.isArray(history)) return;
+        const ordered = [...history].sort(
+          (left: any, right: any) => Number(left?.timestamp || 0) - Number(right?.timestamp || 0)
+        );
+        for (const event of ordered) {
+          if (cancelled) return;
+          await applySpectatorEvent(event);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [applySpectatorEvent, enabled, groupId]);
   const beginRound = useCallback(async (
     current: Match,
     roundId: string,
@@ -344,10 +539,13 @@ export function useQortalLandGame(options: Options) {
       outcome: undefined,
       error: undefined,
       sessionClosed: false,
+      localSpectatorsAllowed: false,
+      remoteSpectatorsAllowed: false,
+      spectatorsEnabled: false,
     } : value);
   }, [address, updateMatch]);
   const send = useCallback((type: string, payload: Record<string, unknown> = {}) => {
-    if (!qortalLandRealtime.isReady()) throw new Error('Game transport is unavailable');
+    if (!qortalLandRealtime.isReady()) throw new Error(t('group:qortal_land.games.errors.transport_unavailable'));
     const requestId = crypto.randomUUID();
     const nestedType = payload.message && typeof payload.message === 'object' && !Array.isArray(payload.message)
       ? String((payload.message as Record<string, unknown>).type || '')
@@ -361,7 +559,178 @@ export function useQortalLandGame(options: Options) {
     });
     qortalLandRealtime.send({ type, requestId, ...payload });
     return requestId;
-  }, []);
+  }, [t]);
+
+  useEffect(() => {
+    if (match?.game !== 'chess' || match.phase !== 'active' || !transportReady) return;
+    try {
+      send('SEND_GAME_MESSAGE', {
+        matchId: match.matchId,
+        message: { type: 'MATCH_PING', messageId: crypto.randomUUID() },
+      });
+    } catch { /* A recovered link will retry when transport becomes ready. */ }
+  }, [match?.game, match?.matchId, match?.roundId, match?.phase, send, transportReady]);
+
+  const publishCurrentSpectatorSnapshot = useCallback(async () => {
+    const current = matchRef.current;
+    if (
+      !current ||
+      current.game !== 'chess' ||
+      !current.spectatorsEnabled ||
+      !current.state ||
+      !current.stateHash ||
+      !current.roundId ||
+      !['active', 'finishing', 'finished'].includes(current.phase)
+    ) {
+      return;
+    }
+    const state: ChessState = {
+      ...(current.state as ChessState),
+      outcome: current.outcome || current.state.outcome,
+    };
+    const stateHash = await hashChessState(state);
+    const latest = matchRef.current;
+    if (!latest?.spectatorsEnabled || latest.matchId !== current.matchId ||
+        latest.roundId !== current.roundId || latest.stateHash !== current.stateHash ||
+        latest.phase !== current.phase || latest.outcome !== current.outcome ||
+        spectatorContextRef.current !== `${address}:${groupId}:${sessionId}`) return;
+    const payload = {
+      qortalLandType: 'chess_spectator_state',
+      matchId: current.matchId,
+      roundId: current.roundId,
+      requesterAddress: current.requesterAddress,
+      recipientAddress: current.recipientAddress,
+      state,
+      stateHash,
+      phase:
+        current.phase === 'finished' || state.outcome
+          ? 'finished'
+          : 'active',
+      expiresAt: Date.now() + CHESS_SPECTATOR_SNAPSHOT_TTL_MS,
+    };
+    const published = await publishChessSpectatorEvent({
+      groupId,
+      authorAddress: address,
+      sessionId,
+      payload,
+    });
+    await applySpectatorEvent({
+      eventId: published.eventId,
+      groupId,
+      channelId: QORTAL_LAND_GAME_CHANNEL_ID,
+      eventType: 'message',
+      authorAddress: address,
+      encryptedPayload: JSON.stringify({
+        ...payload,
+        qortalLand: true,
+        sessionId,
+        version: 1,
+      }),
+      timestamp: published.timestamp,
+    });
+  }, [address, applySpectatorEvent, groupId, sessionId]);
+
+  useEffect(() => {
+    if (
+      match?.game !== 'chess' ||
+      !match.spectatorsEnabled ||
+      !match.stateHash ||
+      !['active', 'finishing', 'finished'].includes(match.phase)
+    ) {
+      return;
+    }
+    void publishCurrentSpectatorSnapshot().catch(() => undefined);
+  }, [
+    match?.game,
+    match?.matchId,
+    match?.phase,
+    match?.roundId,
+    match?.spectatorsEnabled,
+    match?.stateHash,
+    publishCurrentSpectatorSnapshot,
+  ]);
+
+  useEffect(() => {
+    if (match?.game !== 'chess' || !match.spectatorsEnabled) return;
+    const interval = window.setInterval(() => {
+      void publishCurrentSpectatorSnapshot().catch(() => undefined);
+    }, CHESS_SPECTATOR_SNAPSHOT_TTL_MS / 2);
+    return () => window.clearInterval(interval);
+  }, [match?.game, match?.matchId, match?.spectatorsEnabled, publishCurrentSpectatorSnapshot]);
+
+  useEffect(() => {
+    const sharing = Boolean(
+      match?.game === 'chess' &&
+      match.spectatorsEnabled &&
+      match.roundId &&
+      ['active', 'finishing', 'finished'].includes(match.phase)
+    );
+    if (sharing && match?.roundId) {
+      lastSharedMatchRef.current = {
+        matchId: match.matchId,
+        roundId: match.roundId,
+      };
+      return;
+    }
+    const previous = lastSharedMatchRef.current;
+    if (!previous) return;
+    lastSharedMatchRef.current = null;
+    void publishChessSpectatorEvent({
+      groupId,
+      authorAddress: address,
+      sessionId,
+      payload: {
+        qortalLandType: 'chess_spectator_closed',
+        matchId: previous.matchId,
+        roundId: previous.roundId,
+      },
+    }).catch(() => undefined);
+  }, [address, groupId, match?.game, match?.matchId, match?.phase, match?.roundId, match?.spectatorsEnabled, sessionId]);
+
+  const setSpectatorsAllowed = useCallback((enabledForLocalPlayer: boolean) => {
+    const current = matchRef.current;
+    if (
+      !current ||
+      current.game !== 'chess' ||
+      !current.remoteSpectatorsSupported ||
+      !['active', 'finishing'].includes(current.phase)
+    ) {
+      return;
+    }
+    const messageId = crypto.randomUUID();
+    updateMatch((value) =>
+      value && value.matchId === current.matchId
+        ? {
+            ...value,
+            localSpectatorsAllowed: enabledForLocalPlayer,
+            spectatorsEnabled:
+              enabledForLocalPlayer && value.remoteSpectatorsAllowed === true,
+          }
+        : value
+    );
+    try {
+      send('SEND_GAME_MESSAGE', {
+        matchId: current.matchId,
+        message: {
+          type: 'SPECTATOR_PERMISSION',
+          messageId,
+          roundId: current.roundId,
+          enabled: enabledForLocalPlayer,
+        },
+      });
+    } catch {
+      updateMatch((value) =>
+        value && value.matchId === current.matchId
+          ? {
+              ...value,
+              localSpectatorsAllowed: !enabledForLocalPlayer,
+              spectatorsEnabled:
+                !enabledForLocalPlayer && value.remoteSpectatorsAllowed === true,
+            }
+          : value
+      );
+    }
+  }, [send, updateMatch]);
 
   const failProtocol = useCallback((reason: string) => {
     const current = matchRef.current;
@@ -382,6 +751,27 @@ export function useQortalLandGame(options: Options) {
   const handleGameMessage = useCallback(async (message: Record<string, unknown>) => {
     const current = matchRef.current;
     if (!current || message.matchId !== current.matchId) return;
+    if (message.type === 'MATCH_PONG') {
+      updateMatch((value) => value && value.matchId === current.matchId ? {
+        ...value,
+        remoteSpectatorsSupported: message.spectatorProtocol === 1,
+      } : value);
+      return;
+    }
+    if (message.type === 'SPECTATOR_PERMISSION') {
+      if (current.game !== 'chess' || message.roundId !== current.roundId || typeof message.enabled !== 'boolean') return;
+      updateMatch((value) => {
+        if (!value || value.matchId !== current.matchId) return value;
+        const remoteSpectatorsAllowed = message.enabled === true;
+        return {
+          ...value,
+          remoteSpectatorsAllowed,
+          spectatorsEnabled:
+            value.localSpectatorsAllowed === true && remoteSpectatorsAllowed,
+        };
+      });
+      return;
+    }
     if (message.type === 'CHAT_MESSAGE') {
       const parsed = parseChatMessages([message]);
       if (parsed.length !== 1) return;
@@ -419,7 +809,7 @@ export function useQortalLandGame(options: Options) {
       }
       const recipientNonce = String(message.recipientNonce || '');
       if (!/^[0-9a-f]{32}$/i.test(recipientNonce)) {
-        failProtocol('Rematch response contained an invalid nonce');
+        failProtocol(t('group:qortal_land.games.errors.invalid_rematch_nonce'));
         return;
       }
       await beginRound(current, current.roundId, current.requesterNonce, recipientNonce);
@@ -434,7 +824,7 @@ export function useQortalLandGame(options: Options) {
     if (message.roundId !== current.roundId || !current.state || !current.localSeat) return;
     if (message.type === 'MOVE_ACK') {
       if (message.messageId !== current.pendingMoveId || message.stateHash !== current.stateHash) {
-        failProtocol('Move acknowledgement did not match local state');
+        failProtocol(t('group:qortal_land.games.errors.move_ack_mismatch'));
         return;
       }
       const acknowledged = {
@@ -478,7 +868,7 @@ export function useQortalLandGame(options: Options) {
         message.stateHash !== current.stateHash ||
         JSON.stringify(message.outcome) !== JSON.stringify(current.state.outcome)
       ) {
-        failProtocol('Final game state did not match');
+        failProtocol(t('group:qortal_land.games.errors.final_state_mismatch'));
         return;
       }
       send('SEND_GAME_MESSAGE', {
@@ -499,7 +889,7 @@ export function useQortalLandGame(options: Options) {
     }
     if (message.type === 'GAME_OVER_ACK') {
       if (message.ply !== current.state.ply || message.stateHash !== current.stateHash) {
-        failProtocol('Final game acknowledgement did not match');
+        failProtocol(t('group:qortal_land.games.errors.final_ack_mismatch'));
         return;
       }
       replaceMatch({
@@ -517,12 +907,12 @@ export function useQortalLandGame(options: Options) {
     const move = message as unknown as QortalLandGameMove;
     try {
       if (current.pendingMoveId || move.ply !== current.state.ply + 1 || move.previousStateHash !== current.stateHash) {
-        throw new Error('Unexpected move sequence');
+        throw new Error(t('group:qortal_land.games.errors.unexpected_move_sequence'));
       }
       const moveSeat = seatForIncomingQortalLandGameMove(message.type, current.state, current.localSeat);
       const next = applyGameMove(current.game, current.state, moveSeat, message);
       const resultingHash = await hashGameState(current.game, next);
-      if (resultingHash !== move.resultingStateHash) throw new Error('Move state hash mismatch');
+      if (resultingHash !== move.resultingStateHash) throw new Error(t('group:qortal_land.games.errors.move_hash_mismatch'));
       send('SEND_GAME_MESSAGE', {
         matchId: current.matchId,
         message: { type: 'MOVE_ACK', messageId: move.messageId, ply: move.ply, stateHash: resultingHash },
@@ -545,7 +935,7 @@ export function useQortalLandGame(options: Options) {
     } catch (error) {
       failProtocol(error instanceof Error ? error.message : 'Illegal remote move');
     }
-  }, [beginRound, failProtocol, replaceMatch, send]);
+  }, [beginRound, failProtocol, replaceMatch, send, t]);
 
   const handleEvent = useCallback(async (event: Record<string, unknown>) => {
     if (event.type === 'TRANSPORT_STATE') {
@@ -556,12 +946,12 @@ export function useQortalLandGame(options: Options) {
       const fields = event.fields;
       if (!publicKey || !fields || typeof fields !== 'object' || Array.isArray(fields)) return;
       if (!canSignQortalLandGameHandshake(fields as Record<string, unknown>, matchRef.current, address, publicKey)) {
-        failProtocol('Rejected an unexpected game handshake signature request');
+        failProtocol(t('group:qortal_land.games.errors.unexpected_handshake_request'));
         return;
       }
       const response = await window.sendMessage?.('signPresenceMessage', fields, 10_000) as { signature?: string; error?: string } | undefined;
       if (!response?.signature || response.error) {
-        failProtocol(response?.error || 'Wallet declined the game handshake');
+        failProtocol(response?.error || t('group:qortal_land.games.errors.handshake_declined'));
         return;
       }
       send('SUBMIT_HANDSHAKE_SIGNATURE', {
@@ -579,7 +969,7 @@ export function useQortalLandGame(options: Options) {
       if (!pending || !pending.matchId || pending.matchId !== matchRef.current?.matchId) {
         return;
       }
-      const error = String(event.error || 'Game command failed');
+      const error = String(event.error || t('group:qortal_land.games.errors.command_failed'));
       if (pending.type.endsWith(':CHAT_TYPING')) return;
       if (pending.type.endsWith(':CHAT_MESSAGE')) {
         updateMatch((value) => value && ({
@@ -594,7 +984,7 @@ export function useQortalLandGame(options: Options) {
           ...value,
           phase: value.phase === 'finished' ? value.phase : 'reconnecting',
           reconnectDeadline: value.reconnectDeadline || Date.now() + 30_000,
-          error: GAME_RECONNECTING_ERROR,
+          error: reconnectingError,
         }));
         if (qortalLandRealtime.isReady()) {
           qortalLandRealtime.send({ type: 'GET_ACTIVE_MATCH', requestId: crypto.randomUUID() });
@@ -652,7 +1042,7 @@ export function useQortalLandGame(options: Options) {
         recipientDestinationHash: String(event.targetDestinationHash || ''),
         requesterNonce: String(event.requesterNonce || ''), phase: 'incoming',
         requesterName: resolvePlayerName?.(String(event.requesterAddress)),
-        recipientName: 'You',
+        recipientName: t('group:qortal_land.games.player.you'),
         moves: [],
         chatMessages: [],
         expiresAt: Number(event.expiresAt),
@@ -686,8 +1076,8 @@ export function useQortalLandGame(options: Options) {
           recipientDestinationHash,
           requesterNonce,
           recipientNonce: /^[0-9a-f]{32}$/i.test(recipientNonce) ? recipientNonce : undefined,
-          requesterName: requesterAddress === address ? 'You' : resolvePlayerName?.(requesterAddress),
-          recipientName: recipientAddress === address ? 'You' : resolvePlayerName?.(recipientAddress),
+          requesterName: requesterAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(requesterAddress),
+          recipientName: recipientAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(recipientAddress),
           phase: transportPhase === 'establishing' ? 'opening' : transportPhase === 'awaiting_response' ? 'waiting' : 'incoming',
           moves: [],
           chatMessages,
@@ -712,8 +1102,8 @@ export function useQortalLandGame(options: Options) {
           recipientDestinationHash,
           requesterNonce: String(pending.requesterNonce || requesterNonce),
           recipientNonce: undefined,
-          requesterName: requesterAddress === address ? 'You' : resolvePlayerName?.(requesterAddress),
-          recipientName: recipientAddress === address ? 'You' : resolvePlayerName?.(recipientAddress),
+          requesterName: requesterAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(requesterAddress),
+          recipientName: recipientAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(recipientAddress),
           phase: transportPhase === 'round_waiting' ? 'round-waiting' : transportPhase === 'round_incoming' ? 'round-incoming' : 'session-idle',
           moves: [],
           chatMessages,
@@ -729,18 +1119,18 @@ export function useQortalLandGame(options: Options) {
       const transcript = Array.isArray(event.transcript) ? event.transcript : [];
       const moves: QortalLandGameMove[] = [];
       for (const raw of transcript) {
-        if (!raw || typeof raw !== 'object') throw new Error('Invalid snapshot move');
+        if (!raw || typeof raw !== 'object') throw new Error(t('group:qortal_land.games.errors.invalid_snapshot_move'));
         const move = raw as QortalLandGameMove;
         if (
           move.ply !== state.ply + 1 ||
           move.previousStateHash !== stateHash
         ) {
-          throw new Error('Snapshot move sequence mismatch');
+          throw new Error(t('group:qortal_land.games.errors.snapshot_sequence_mismatch'));
         }
         const seat = state.nextSeat;
         state = applyGameMove(eventGame, state, seat, raw as Record<string, unknown>);
         stateHash = await hashGameState(eventGame, state);
-        if (stateHash !== move.resultingStateHash) throw new Error('Snapshot transcript mismatch');
+        if (stateHash !== move.resultingStateHash) throw new Error(t('group:qortal_land.games.errors.snapshot_transcript_mismatch'));
         moves.push(move);
       }
       let pendingMoveId: string | undefined;
@@ -754,12 +1144,12 @@ export function useQortalLandGame(options: Options) {
           pending.previousStateHash !== stateHash ||
           typeof pending.messageId !== 'string'
         ) {
-          throw new Error('Snapshot pending move mismatch');
+          throw new Error(t('group:qortal_land.games.errors.snapshot_pending_move_mismatch'));
         }
         state = applyGameMove(eventGame, state, localSeat, pendingRaw as Record<string, unknown>);
         stateHash = await hashGameState(eventGame, state);
         if (stateHash !== pending.resultingStateHash) {
-          throw new Error('Snapshot pending move hash mismatch');
+          throw new Error(t('group:qortal_land.games.errors.snapshot_pending_hash_mismatch'));
         }
         pendingMoveId = pending.messageId;
         moves.push(pending);
@@ -791,7 +1181,7 @@ export function useQortalLandGame(options: Options) {
         outcome: state.outcome || undefined,
         sessionClosed: false,
         reconnectDeadline: ['recovering', 'awaiting_resume_accept', 'awaiting_resume_confirm'].includes(transportPhase) ? Date.now() + 30_000 : undefined,
-        error: previous?.error === GAME_RECONNECTING_ERROR ? undefined : previous?.error,
+        error: previous?.phase === 'reconnecting' ? undefined : previous?.error,
       }));
       return;
     }
@@ -804,7 +1194,7 @@ export function useQortalLandGame(options: Options) {
       if (event.accepted === true) {
         const recipientNonce = String(event.recipientNonce || '');
         if (!/^[0-9a-f]{32}$/i.test(recipientNonce)) {
-          failProtocol('Accepted invitation did not include a valid recipient nonce');
+          failProtocol(t('group:qortal_land.games.errors.invalid_recipient_nonce'));
           return;
         }
         updateMatch((value) => value && ({
@@ -820,8 +1210,8 @@ export function useQortalLandGame(options: Options) {
         sessionClosed: true,
         error:
           event.reason === 'do_not_disturb'
-            ? 'This player is in Do Not Disturb mode.'
-            : `Invitation ${String(event.reason || 'declined')}`,
+            ? t('group:qortal_land.games.errors.do_not_disturb')
+            : t('group:qortal_land.games.errors.invitation_declined'),
       }));
       return;
     }
@@ -844,7 +1234,7 @@ export function useQortalLandGame(options: Options) {
         error: result === 'declined' || result === 'expired' ? result : value.error,
       }));
     }
-  }, [address, failProtocol, handleGameMessage, onPlayerSeen, publicKey, replaceMatch, resolvePlayerName, send, updateMatch]);
+  }, [address, failProtocol, handleGameMessage, onPlayerSeen, publicKey, reconnectingError, replaceMatch, resolvePlayerName, send, t, updateMatch]);
 
   useEffect(() => {
     if (
@@ -868,7 +1258,7 @@ export function useQortalLandGame(options: Options) {
       }
       eventChainRef.current = eventChainRef.current
         .then(() => handleEvent(event))
-        .catch((error) => failProtocol(error instanceof Error ? error.message : 'Invalid game event'));
+        .catch((error) => failProtocol(error instanceof Error ? error.message : t('group:qortal_land.games.errors.invalid_event')));
     });
     const disposeState = qortalLandRealtime.onState((ready) => {
       setTransportReady(ready);
@@ -910,10 +1300,25 @@ export function useQortalLandGame(options: Options) {
   }, [match, onActiveChange]);
 
   useEffect(() => {
-    if (!match || match.phase === 'session-idle') return;
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    const hasTimedMatch = Boolean(match && match.phase !== 'session-idle');
+    if (!hasTimedMatch && spectatorMatches.length === 0) return;
+    const timer = window.setInterval(
+      () => setNow(Date.now()),
+      hasTimedMatch ? 250 : 5_000
+    );
     return () => window.clearInterval(timer);
-  }, [match?.matchId, match?.phase]);
+  }, [match?.matchId, match?.phase, spectatorMatches.length]);
+
+  useEffect(() => {
+    const expiredIds = spectatorMatches
+      .filter((candidate) => candidate.expiresAt <= now)
+      .map((candidate) => candidate.matchId);
+    if (expiredIds.length === 0) return;
+    const expired = new Set(expiredIds);
+    for (const matchId of expired) spectatorMatchesRef.current.delete(matchId);
+    setSpectatorMatches([...spectatorMatchesRef.current.values()]);
+    setWatchedMatchId((current) => (current && expired.has(current) ? null : current));
+  }, [now, spectatorMatches]);
 
   useEffect(() => {
     if (!match?.reconnectDeadline || match.sessionClosed) return;
@@ -926,11 +1331,11 @@ export function useQortalLandGame(options: Options) {
         reconnectDeadline: undefined,
         remoteTypingUntil: undefined,
         outcome: { type: 'abandoned' },
-        error: 'Private game session could not be recovered',
+        error: t('group:qortal_land.games.errors.recovery_failed'),
       } : value);
     }, Math.max(0, deadline - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [match?.reconnectDeadline, match?.sessionClosed, updateMatch]);
+  }, [match?.reconnectDeadline, match?.sessionClosed, t, updateMatch]);
 
   useEffect(() => () => {
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -972,7 +1377,7 @@ export function useQortalLandGame(options: Options) {
       requesterDestinationHash: localDestinationHash,
       recipientDestinationHash: target.destinationHash,
       requesterNonce,
-      requesterName: 'You',
+      requesterName: t('group:qortal_land.games.player.you'),
       recipientName: target.name || resolvePlayerName?.(target.address),
       phase: 'opening',
       moves: [],
@@ -986,7 +1391,7 @@ export function useQortalLandGame(options: Options) {
       requesterNonce,
       game,
     });
-  }, [address, localDestinationHash, onActivity, replaceMatch, resolvePlayerName, send, sessionId, transportReady]);
+  }, [address, localDestinationHash, onActivity, replaceMatch, resolvePlayerName, send, sessionId, t, transportReady]);
 
   const respond = useCallback((accepted: boolean) => {
     onActivity?.();
@@ -1004,7 +1409,7 @@ export function useQortalLandGame(options: Options) {
       if (accepted && recipientNonce) {
         void beginRound(current, current.roundId, current.requesterNonce, recipientNonce);
       } else {
-        replaceMatch({ ...current, phase: 'finished', state: undefined, error: 'Rematch declined' });
+        replaceMatch({ ...current, phase: 'finished', state: undefined, error: t('group:qortal_land.games.errors.rematch_declined') });
       }
       return;
     }
@@ -1019,7 +1424,7 @@ export function useQortalLandGame(options: Options) {
       phase: accepted ? 'starting' : 'finished',
       error: accepted ? undefined : 'declined',
     });
-  }, [beginRound, onActivity, replaceMatch, send]);
+  }, [beginRound, onActivity, replaceMatch, send, t]);
 
   const playColumn = useCallback(async (column: number): Promise<boolean> => {
     onActivity?.();
@@ -1043,12 +1448,12 @@ export function useQortalLandGame(options: Options) {
       send('SEND_GAME_MESSAGE', { matchId: current.matchId, message: { type: 'MOVE', roundId: current.roundId, ...move } });
       return true;
     } catch (error) {
-      failProtocol(error instanceof Error ? error.message : 'Move failed');
+      failProtocol(error instanceof Error ? error.message : t('group:qortal_land.games.errors.move_failed'));
       return false;
     } finally {
       moveInFlightRef.current = false;
     }
-  }, [failProtocol, onActivity, replaceMatch, send]);
+  }, [failProtocol, onActivity, replaceMatch, send, t]);
 
   const playCheckersMove = useCallback(async (from: number, path: number[]): Promise<boolean> => {
     onActivity?.();
@@ -1065,12 +1470,12 @@ export function useQortalLandGame(options: Options) {
       send('SEND_GAME_MESSAGE', { matchId: current.matchId, message: { type: 'MOVE', roundId: current.roundId, ...move } });
       return true;
     } catch (error) {
-      failProtocol(error instanceof Error ? error.message : 'Move failed');
+      failProtocol(error instanceof Error ? error.message : t('group:qortal_land.games.errors.move_failed'));
       return false;
     } finally {
       moveInFlightRef.current = false;
     }
-  }, [failProtocol, onActivity, replaceMatch, send]);
+  }, [failProtocol, onActivity, replaceMatch, send, t]);
 
   const playChessMove = useCallback(async (from: number, to: number, promotion?: ChessPromotion): Promise<boolean> => {
     onActivity?.();
@@ -1087,12 +1492,12 @@ export function useQortalLandGame(options: Options) {
       send('SEND_GAME_MESSAGE', { matchId: current.matchId, message: { type: 'MOVE', roundId: current.roundId, ...move } });
       return true;
     } catch (error) {
-      failProtocol(error instanceof Error ? error.message : 'Move failed');
+      failProtocol(error instanceof Error ? error.message : t('group:qortal_land.games.errors.move_failed'));
       return false;
     } finally {
       moveInFlightRef.current = false;
     }
-  }, [failProtocol, onActivity, replaceMatch, send]);
+  }, [failProtocol, onActivity, replaceMatch, send, t]);
 
   const performResign = useCallback(() => {
     onActivity?.();
@@ -1126,16 +1531,36 @@ export function useQortalLandGame(options: Options) {
         matchId: current.matchId,
         message: { type: 'CHAT_MESSAGE', messageId: record.messageId, text: record.text, createdAt: record.createdAt },
       });
+      if (current.spectatorsEnabled && current.roundId) {
+        void publishChessSpectatorEvent({
+          groupId,
+          authorAddress: address,
+          sessionId,
+          payload: {
+            qortalLandType: 'chess_spectator_chat',
+            matchId: current.matchId,
+            roundId: current.roundId,
+            messageId: record.messageId,
+            messageText: record.text,
+          },
+        }).catch(() => {
+          updateMatch((value) => value?.matchId === current.matchId ? {
+            ...value,
+            chatMessages: value.chatMessages.map((item) => item.messageId === record.messageId
+              ? { ...item, failed: true } : item),
+          } : value);
+        });
+      }
       return true;
     } catch {
       updateMatch((value) => value ? {
         ...value,
         chatMessages: value.chatMessages.filter((item) => item.messageId !== record.messageId),
-        error: 'Chat message could not be sent',
+        error: t('group:qortal_land.games.errors.chat_send_failed'),
       } : value);
       return false;
     }
-  }, [address, onActivity, replaceMatch, send, updateMatch]);
+  }, [address, groupId, onActivity, replaceMatch, send, sessionId, t, updateMatch]);
 
   const sendTyping = useCallback((active: boolean) => {
     if (active) onActivity?.();
@@ -1205,14 +1630,110 @@ export function useQortalLandGame(options: Options) {
       chatMessages: [],
       outcome: undefined,
       error: undefined,
+      localSpectatorsAllowed: false,
+      remoteSpectatorsAllowed: false,
+      spectatorsEnabled: false,
     });
     send('SEND_GAME_MESSAGE', { matchId: current.matchId, message: { type: 'ROUND_REQUEST', messageId: crypto.randomUUID(), roundId, requesterNonce, ...gameConfig(current.game) } });
   }, [onActivity, replaceMatch, send, transportReady]);
 
+  const watchableMatch = spectatorMatches.find(
+    (candidate) =>
+      candidate.phase === 'active' &&
+      candidate.expiresAt > now &&
+      candidate.matchId !== dismissedWatchMatchId &&
+      ![candidate.requesterAddress, candidate.recipientAddress].includes(address)
+  );
+  const watchedSnapshot = watchedMatchId
+    ? spectatorMatches.find((candidate) => candidate.matchId === watchedMatchId) || null
+    : null;
+  const sendSpectatorChat = useCallback((text: string): boolean => {
+    const snapshot = watchedMatchId
+      ? spectatorMatchesRef.current.get(watchedMatchId)
+      : null;
+    const normalized = text.trim();
+    if (
+      !snapshot ||
+      !['active', 'finished'].includes(snapshot.phase) ||
+      snapshot.expiresAt <= Date.now() ||
+      !normalized ||
+      normalized.length > 500 ||
+      new TextEncoder().encode(normalized).length > 2_000
+    ) {
+      return false;
+    }
+    const chatKey = spectatorChatKey(snapshot.matchId, snapshot.roundId);
+    const record: ChessSpectatorChat = {
+      matchId: snapshot.matchId,
+      roundId: snapshot.roundId,
+      messageId: crypto.randomUUID(),
+      authorAddress: address,
+      text: normalized,
+      createdAt: Date.now(),
+      delivered: false,
+    };
+    appendSpectatorChat(record);
+    void publishChessSpectatorEvent({
+      groupId,
+      authorAddress: address,
+      sessionId,
+      payload: {
+        qortalLandType: 'chess_spectator_chat',
+        matchId: snapshot.matchId,
+        roundId: snapshot.roundId,
+        messageId: record.messageId,
+        messageText: record.text,
+      },
+    })
+      .then(() => {
+        setSpectatorChats((current) => ({
+          ...current,
+          [chatKey]: (current[chatKey] || []).map((message) =>
+            message.messageId === record.messageId
+              ? { ...message, delivered: true }
+              : message
+          ),
+        }));
+      })
+      .catch(() => {
+        setSpectatorChats((current) => ({
+          ...current,
+          [chatKey]: (current[chatKey] || []).map((message) =>
+            message.messageId === record.messageId
+              ? { ...message, failed: true }
+              : message
+          ),
+        }));
+      });
+    return true;
+  }, [address, appendSpectatorChat, groupId, sessionId, watchedMatchId]);
+
   // A dialog opened after the authenticated lock screen becomes MUI's newest
   // focus trap even though the lock screen is visually above it. Preserve the
   // game state while locked, but do not mount game UI that can steal focus.
-  const modal = isAppLocked ? null : match?.game === 'checkers' ? (
+  const sharingMessage = match?.spectatorsEnabled
+    ? t('group:qortal_land.games.spectators.sharing_on')
+    : match?.localSpectatorsAllowed
+      ? t('group:qortal_land.games.spectators.waiting_for_opponent')
+      : t('group:qortal_land.games.spectators.sharing_off');
+  const spectatorControls = match?.remoteSpectatorsSupported &&
+    ['active', 'finishing'].includes(match.phase) ? (
+      <Alert
+        severity="info"
+        sx={{ mb: 1, flexShrink: 0 }}
+        action={
+          <Button color="inherit" size="small"
+            onClick={() => setSpectatorsAllowed(!match.localSpectatorsAllowed)}>
+            {t(match.localSpectatorsAllowed
+              ? 'group:qortal_land.games.spectators.disable'
+              : 'group:qortal_land.games.spectators.allow')}
+          </Button>
+        }
+      >
+        {sharingMessage}
+      </Alert>
+    ) : null;
+  const playerModal = match?.game === 'checkers' ? (
     <CheckersGameDialog
       address={address}
       match={match}
@@ -1230,6 +1751,7 @@ export function useQortalLandGame(options: Options) {
   ) : match?.game === 'chess' ? (
     <ChessGameDialog
       address={address}
+      spectatorControls={spectatorControls}
       match={match}
       now={now}
       onClose={close}
@@ -1257,6 +1779,71 @@ export function useQortalLandGame(options: Options) {
       resolvePlayerName={resolvePlayerName}
       transportReady={transportReady}
     />
+  );
+
+  const modal = isAppLocked ? null : (
+    <>
+      <GameSessionChatSharedContext.Provider
+        value={match?.game === 'chess' && match.spectatorsEnabled === true}
+      >
+        {playerModal}
+      </GameSessionChatSharedContext.Provider>
+      <ChessSpectatorDialog
+        address={address}
+        messages={
+          watchedSnapshot
+            ? spectatorChats[
+                spectatorChatKey(watchedSnapshot.matchId, watchedSnapshot.roundId)
+              ] || []
+            : []
+        }
+        onClose={() => setWatchedMatchId(null)}
+        onSendChat={sendSpectatorChat}
+        resolvePlayerName={resolvePlayerName}
+        snapshot={watchedSnapshot}
+      />
+      <Snackbar
+        action={
+          <>
+            <Button
+              color="inherit"
+              onClick={() => {
+                if (watchableMatch) setWatchedMatchId(watchableMatch.matchId);
+              }}
+              size="small"
+            >
+              {t('group:qortal_land.games.spectators.watch')}
+            </Button>
+            <Button
+              color="inherit"
+              onClick={() => setDismissedWatchMatchId(watchableMatch?.matchId || null)}
+              size="small"
+            >
+              {t('group:qortal_land.games.spectators.dismiss')}
+            </Button>
+          </>
+        }
+        anchorOrigin={{ horizontal: 'center', vertical: 'bottom' }}
+        message={
+          watchableMatch
+            ? t('group:qortal_land.games.spectators.available', {
+                player1:
+                  resolvePlayerName?.(watchableMatch.requesterAddress) ||
+                  watchableMatch.requesterAddress,
+                player2:
+                  resolvePlayerName?.(watchableMatch.recipientAddress) ||
+                  watchableMatch.recipientAddress,
+              })
+            : ''
+        }
+        open={Boolean(
+          watchableMatch &&
+          watchableMatch.matchId !== dismissedWatchMatchId &&
+          !watchedMatchId &&
+          !match
+        )}
+      />
+    </>
   );
 
   const presence = useMemo(() => (

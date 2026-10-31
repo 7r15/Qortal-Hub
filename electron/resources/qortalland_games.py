@@ -140,6 +140,7 @@ ACTIVE_TYPES = {
     "CHAT_CHUNK",
     "CHAT_ACK",
     "CHAT_TYPING",
+    "SPECTATOR_PERMISSION",
 }
 
 ROUND_PHASES = {"session_idle", "round_waiting", "round_incoming"}
@@ -1781,6 +1782,19 @@ class QortalLandGameManager:
                 state["lastRemoteTyping"] = now
                 self.send_event("GAME_MESSAGE", {"matchId": match_id, "message": game_message})
             return True
+        if message_type == "SPECTATOR_PERMISSION":
+            if game_message.get("roundId") != state.get("roundId"):
+                return True
+            try:
+                uuid.UUID(message_id)
+                valid_permission = isinstance(game_message.get("enabled"), bool)
+            except (TypeError, ValueError, AttributeError):
+                valid_permission = False
+            if not valid_permission:
+                self._protocol_error(state, "invalid_spectator_permission")
+            else:
+                self.send_event("GAME_MESSAGE", {"matchId": match_id, "message": game_message})
+            return True
         if message_type == "ROUND_REQUEST":
             try:
                 self._validate_round_control(state, game_message)
@@ -1904,7 +1918,10 @@ class QortalLandGameManager:
                 seen.pop()
             seen.add(message_id)
         if game_message.get("type") == "MATCH_PING":
-            self._send_game_payload(state, {"type": "MATCH_PONG", "matchId": match_id, "messageId": message_id})
+            self._send_game_payload(state, {
+                "type": "MATCH_PONG", "matchId": match_id,
+                "messageId": message_id, "spectatorProtocol": 1,
+            })
         elif game_message.get("type") == "START_ACK":
             resume_phase = str(state.pop("resumeReturnPhase", "active"))
             state["phase"] = resume_phase if resume_phase in {"active", "ending", "round_waiting", "round_incoming"} else "active"
@@ -2219,6 +2236,18 @@ class QortalLandGameManager:
             self._send_game_payload(state, {
                 "type": "CHAT_TYPING", "matchId": match_id, "active": game_message["active"]
             })
+            return
+        if message_type == "SPECTATOR_PERMISSION":
+            try:
+                uuid.UUID(message_id)
+            except (TypeError, ValueError, AttributeError) as exc:
+                raise ValueError("invalid_spectator_permission") from exc
+            if (
+                not isinstance(game_message.get("enabled"), bool)
+                or game_message.get("roundId") != state.get("roundId")
+            ):
+                raise ValueError("invalid_spectator_permission")
+            self._send_game_payload(state, {**game_message, "roundId": state.get("roundId")})
             return
         if message_type == "ROUND_REQUEST":
             self._validate_round_control(state, game_message)
