@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Invokes build-rnsd-frozen.py with a working Python (python3, python, or py -3 on Windows).
+ * Invokes build-rnsd-frozen.py with a working Python.
  * The Python builder emits both `rnsd` and `presence_bridge`.
  */
 import { spawnSync } from 'child_process';
@@ -22,7 +22,7 @@ const attempts =
   process.env.QORTAL_RETICULUM_BUILD_ARCH === 'x64' && process.platform === 'darwin'
     ? [['arch', '-x86_64', '/Applications/Xcode.app/Contents/Developer/usr/bin/python3']]
     : process.platform === 'win32'
-    ? [['py', '-3'], ['python3'], ['python']]
+    ? [['python'], ['python3'], ['py', '-3']]
     : [['python3'], ['python']];
 
 const scriptArgs = [];

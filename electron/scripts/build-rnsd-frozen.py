@@ -304,6 +304,36 @@ def freeze_target(
     print(f"Wrote {dest}")
 
 
+def verify_frozen_startup(executable: Path) -> None:
+    """Check imports in an environment without the build Python on PATH."""
+    env = os.environ.copy()
+    env.pop("PYTHONHOME", None)
+    env.pop("PYTHONPATH", None)
+    env.pop("VIRTUAL_ENV", None)
+    if os.name == "nt":
+        system_root = env.get("SystemRoot", r"C:\Windows")
+        env["PATH"] = os.pathsep.join([str(Path(system_root) / "System32"), system_root])
+    try:
+        result = subprocess.run(
+            [str(executable), "--help"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            timeout=60,
+            env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"Frozen {executable.name} failed to start: {exc}") from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Frozen {executable.name} failed its startup check "
+            f"(exit {result.returncode}):\n{result.stderr[-4000:]}"
+        )
+    print(f"Verified frozen startup: {executable.name}")
+
+
 def copy_runtime_sources(electron_root: Path, output_dir: Path) -> None:
     source_bridge = electron_root / "resources" / "presence_bridge.py"
     source_games = electron_root / "resources" / "qortalland_games.py"
@@ -396,6 +426,8 @@ def main() -> None:
             name=target["name"],
             entry_script=entry_script,
         )
+        suffix = ".exe" if os.name == "nt" else ""
+        verify_frozen_startup(args.output_dir / f"{target['name']}{suffix}")
     copy_runtime_sources(electron_root, args.output_dir)
     remove_python_cache_artifacts(args.output_dir)
 
