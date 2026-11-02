@@ -353,6 +353,7 @@ def copy_runtime_sources(electron_root: Path, output_dir: Path) -> None:
     shutil.copy2(source_bridge, output_dir / "presence_bridge.py")
     shutil.copy2(electron_root / "resources" / "masque_discovery_codec.py", output_dir / "masque_discovery_codec.py")
     shutil.copy2(source_games, output_dir / "qortalland_games.py")
+    shutil.copy2(electron_root / "resources" / "qortalland_chess_clock.py", output_dir / "qortalland_chess_clock.py")
     shutil.copy2(source_proximity, output_dir / "qortalland_proximity.py")
     shutil.copy2(source_diagnostics, output_dir / "qortal_python_diagnostics.py")
     shutil.copy2(source_sitecustomize, output_dir / "sitecustomize.py")

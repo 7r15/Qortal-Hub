@@ -4,7 +4,8 @@ import { createChessState, type ChessState } from './chess';
 import { ChessGameDialog } from './ChessGameDialog';
 import type { QortalLandGameMatchView } from './useQortalLandGame';
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async (original) => ({
+  ...(await original<typeof import('react-i18next')>()),
   useTranslation: () => ({
     t: (key: string) =>
       key === 'group:qortal_land.games.chat.message_aria' ? 'Game chat message' : key,
@@ -29,11 +30,19 @@ const renderGame = (
 };
 
 describe('Chess game dialog', () => {
+  it('submits Chess960 castling by selecting the king and its rook', async () => {
+    const state = createChessState(1, 518);
+    state.board.fill(0); state.board[60] = 6; state.board[63] = 4; state.board[4] = -6;
+    const { onPlayMove: play } = renderGame(state, vi.fn().mockResolvedValue(true), vi.fn(), { game: 'chess960' });
+    fireEvent.click(screen.getByRole('gridcell', { name: /Row 8, column 5, your king/i }));
+    fireEvent.click(screen.getByRole('gridcell', { name: /Row 8, column 8, your rook/i }));
+    await waitFor(() => expect(play).toHaveBeenCalledWith(60, 63));
+  });
   it('shows immediate feedback while opening the private game link', () => {
     renderGame(createChessState(1), vi.fn(), vi.fn(), { phase: 'opening', state: undefined });
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Preparing the Chess game...')).toBeInTheDocument();
+    expect(screen.getByText('group:qortal_land.games.chess_options.preparing')).toBeInTheDocument();
   });
 
   it('renders an accessible board and submits a legal move', async () => {

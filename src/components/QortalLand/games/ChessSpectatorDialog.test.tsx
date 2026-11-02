@@ -4,7 +4,8 @@ import { createChessState } from './chess';
 import { ChessSpectatorDialog } from './ChessSpectatorDialog';
 import type { ChessSpectatorSnapshot } from './chessSpectators';
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async (original) => ({
+  ...(await original<typeof import('react-i18next')>()),
   useTranslation: () => ({
     t: (key: string) =>
       ({

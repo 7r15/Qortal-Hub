@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Optional
 import RNS
 from RNS.Channel import CEType, ChannelException, MessageBase
 from RNS.vendor import umsgpack
+from qortalland_chess_clock import ChessClock, CHESS_TIME_CONTROLS
 from qortalland_proximity import PROXIMITY_COMMANDS, QortalLandProximityVoiceManager
 
 try:
@@ -43,10 +44,31 @@ GAME_CONFIGS = {
     "connect-four": {"gameVersion": 1, "rulesVersion": 1, "maxPly": 42},
     "checkers": {"gameVersion": 1, "rulesVersion": 1, "maxPly": 200},
     "chess": {"gameVersion": 1, "rulesVersion": 1, "maxPly": 600},
+    "chess960": {"gameVersion": 1, "rulesVersion": 1, "maxPly": 600},
 }
 ADDRESS_VERSION = 58
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 BASE58_MAP = {c: i for i, c in enumerate(BASE58_ALPHABET)}
+
+
+def chess960_back_rank(position):
+    if type(position) is not int or not 0 <= position < 960:
+        raise ValueError("invalid_chess960_position")
+    rank = [0] * 8
+    rank[(position % 4) * 2 + 1] = 3
+    position //= 4
+    rank[(position % 4) * 2] = 3
+    position //= 4
+    empty = lambda: [index for index, piece in enumerate(rank) if piece == 0]
+    rank[empty()[position % 6]] = 5
+    position //= 6
+    pairs = [(first, second) for first in range(4) for second in range(first + 1, 5)]
+    spaces = empty()
+    for index in pairs[position]:
+        rank[spaces[index]] = 2
+    for index, file in enumerate(empty()):
+        rank[file] = 6 if index == 1 else 4
+    return rank
 
 COMMANDS = {
     "SET_LAND_CONTEXT",
@@ -104,6 +126,11 @@ HANDSHAKE_FIELD_ORDER = {
         "requesterNonce", "recipientNonce", "lastAcknowledgedPly", "stateHash", "transcriptHash", "createdAt",
     ),
 }
+HANDSHAKE_OPTIONAL_FIELDS = {
+    "QORTAL_LAND_GAME_INVITE": ("chessColor", "chessTime"),
+    "QORTAL_LAND_GAME_ACCEPT": ("chessWhiteSeat",),
+}
+
 HANDSHAKE_TYPE_CODES = {name: index + 1 for index, name in enumerate(HANDSHAKE_FIELD_ORDER)}
 HANDSHAKE_TYPES_BY_CODE = {code: name for name, code in HANDSHAKE_TYPE_CODES.items()}
 HEX_FIELD_LENGTHS = {
@@ -700,6 +727,8 @@ class QortalLandGameManager:
         config = GAME_CONFIGS.get(game)
         if not config:
             raise ValueError("unsupported_game")
+        self._validate_chess_color(game, message.get("chessColor"))
+        self._validate_chess_time(game, message.get("chessTime"))
         uuid.UUID(match_id)
         if (
             len(bytes.fromhex(nonce)) != 16
@@ -733,6 +762,7 @@ class QortalLandGameManager:
             "requesterNonce": nonce,
             "groupId": context["groupId"],
             "game": game,
+            **{key: message[key] for key in ("chessColor", "chessTime") if key in message},
             "gameVersion": config["gameVersion"],
             "rulesVersion": config["rulesVersion"],
             "peerHash": peer_hash,
@@ -878,6 +908,7 @@ class QortalLandGameManager:
     def _invite_fields(self, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "type": "QORTAL_LAND_GAME_INVITE",
+            **{key: state[key] for key in ("chessColor", "chessTime") if key in state},
             "protocolVersion": PROTOCOL_VERSION,
             "game": state["game"],
             "gameVersion": state["gameVersion"],
@@ -970,11 +1001,15 @@ class QortalLandGameManager:
         fields = envelope["fields"]
         kind = str(fields.get("type") or "")
         order = HANDSHAKE_FIELD_ORDER.get(kind)
+        optional = HANDSHAKE_OPTIONAL_FIELDS.get(kind, ())
+        extras = {key: fields[key] for key in optional if key in fields}
+        if order and extras:
+            order = (*order, *extras)
         if order is None or set(fields) != set(order):
             raise ValueError("invalid_handshake_schema")
         values = []
         for key in order:
-            if key in {"type", "signerPublicKey"}:
+            if key in {"type", "signerPublicKey", *optional}:
                 continue
             value = fields[key]
             if key in {"matchId", "roundId"}:
@@ -987,6 +1022,8 @@ class QortalLandGameManager:
             elif key in ADDRESS_FIELDS:
                 value = _b58decode(str(value))
             values.append(value)
+        if extras:
+            values.append({optional.index(key): value for key, value in extras.items()})
         return {"t": HANDSHAKE_TYPE_CODES[kind], "v": values, "p": _b58decode(envelope["publicKey"]), "s": _b58decode(envelope["signature"])}
 
     def _decode_handshake(self, packed: Dict[str, Any]) -> Dict[str, Any]:
@@ -994,10 +1031,18 @@ class QortalLandGameManager:
         order = HANDSHAKE_FIELD_ORDER.get(kind)
         values = packed.get("v")
         wire_order = [key for key in (order or ()) if key not in {"type", "signerPublicKey"}]
+        optional = HANDSHAKE_OPTIONAL_FIELDS.get(kind, ())
+        extras = {}
+        if optional and isinstance(values, list) and len(values) == len(wire_order) + 1:
+            packed_extras = values[-1]
+            if not isinstance(packed_extras, dict) or not packed_extras or any(type(key) is not int or key < 0 or key >= len(optional) for key in packed_extras):
+                raise ValueError("invalid_handshake_options")
+            extras = {optional[key]: value for key, value in packed_extras.items()}
+            values = values[:-1]
         if order is None or not isinstance(values, list) or len(values) != len(wire_order):
             raise ValueError("invalid_handshake_fields")
         public_key = _b58encode(bytes(packed.get("p") or b""))
-        fields: Dict[str, Any] = {"type": kind, "signerPublicKey": public_key}
+        fields: Dict[str, Any] = {"type": kind, "signerPublicKey": public_key, **extras}
         for key, value in zip(wire_order, values):
             if key in {"matchId", "roundId"}:
                 value = str(uuid.UUID(bytes=bytes(value)))
@@ -1051,6 +1096,7 @@ class QortalLandGameManager:
                 "requesterNonce": fields["requesterNonce"],
                 "groupId": fields["groupId"],
                 "game": fields["game"],
+                **{key: fields[key] for key in ("chessColor", "chessTime") if key in fields},
                 "gameVersion": fields["gameVersion"],
                 "rulesVersion": fields["rulesVersion"],
                 "linkId": fields["linkId"],
@@ -1081,6 +1127,7 @@ class QortalLandGameManager:
                     "targetDestinationHash": state["targetDestinationHash"],
                     "requesterNonce": state["requesterNonce"],
                     "game": state["game"],
+                    **{key: state[key] for key in ("chessColor", "chessTime") if key in state},
                     "gameVersion": state["gameVersion"],
                     "rulesVersion": state["rulesVersion"],
                     "expiresAt": state["expiresAt"],
@@ -1253,11 +1300,31 @@ class QortalLandGameManager:
         with self.lock:
             return id(link) in self.links_by_object
 
+    @staticmethod
+    def _validate_chess_time(game, preset):
+        if preset is not None and (game not in {"chess", "chess960"} or not isinstance(preset, str) or preset not in CHESS_TIME_CONTROLS):
+            raise ValueError("invalid_chess_time_control")
+
+    @staticmethod
+    def _validate_chess_color(game, color):
+        if color is not None and (game not in {"chess", "chess960"} or color not in ("white", "black", "choose")):
+            raise ValueError("invalid_chess_color")
+
+    @staticmethod
+    def _validate_chess_selection(state, selection):
+        if state.get("chessColor") == "choose":
+            if type(selection) is not int or selection not in (1, 2):
+                raise ValueError("invalid_chess_color_selection")
+        elif selection is not None:
+            raise ValueError("unexpected_chess_color_selection")
+
     def _validate_invite(self, fields: Dict[str, Any], envelope: Dict[str, Any], link) -> None:
         context = self.land_context
         if not context:
             raise ValueError("unavailable")
         config = GAME_CONFIGS.get(str(fields.get("game") or ""))
+        self._validate_chess_color(fields.get("game"), fields.get("chessColor"))
+        self._validate_chess_time(fields.get("game"), fields.get("chessTime"))
         if (
             fields.get("type") != "QORTAL_LAND_GAME_INVITE"
             or fields.get("protocolVersion") != PROTOCOL_VERSION
@@ -1323,12 +1390,16 @@ class QortalLandGameManager:
             self._close_match(match_id, "expired")
             raise ValueError("invite_expired")
         if decision == "accept":
+            self._validate_chess_selection(state, message.get("chessWhiteSeat"))
+            if "chessWhiteSeat" in message:
+                state["chessWhiteSeat"] = message["chessWhiteSeat"]
             recipient_nonce = str(message.get("recipientNonce") or secrets.token_hex(16)).lower()
             if len(bytes.fromhex(recipient_nonce)) != 16:
                 raise ValueError("invalid_nonce")
             state["recipientNonce"] = recipient_nonce
             fields = {
                 "type": "QORTAL_LAND_GAME_ACCEPT",
+                **({"chessWhiteSeat": state["chessWhiteSeat"]} if "chessWhiteSeat" in state else {}),
                 "inviteHash": state["inviteHash"],
                 "matchId": match_id,
                 "requesterNonce": state["requesterNonce"],
@@ -1547,7 +1618,7 @@ class QortalLandGameManager:
                 or any(not isinstance(square, int) or isinstance(square, bool) or square < 0 or square > 63 for square in path)
             ):
                 raise ValueError("invalid_checkers_move")
-        elif game == "chess":
+        elif game in {"chess", "chess960"}:
             origin = move.get("from")
             destination = move.get("to")
             promotion = move.get("promotion")
@@ -1579,7 +1650,7 @@ class QortalLandGameManager:
 
     @staticmethod
     def _same_move(left: Dict[str, Any], right: Dict[str, Any]) -> bool:
-        keys = ("roundId", "messageId", "ply", "column", "from", "to", "path", "promotion", "previousStateHash", "resultingStateHash")
+        keys = ("roundId", "messageId", "ply", "column", "from", "to", "path", "promotion", "previousStateHash", "resultingStateHash", "clockRemainingMs")
         return all(left.get(key) == right.get(key) for key in keys)
 
     def _reset_round(
@@ -1609,9 +1680,13 @@ class QortalLandGameManager:
             "lastRx": time.time(),
         })
         state.pop("pendingRound", None)
+        state.pop("chessClock", None)
+        state.pop("clockTimeoutSeat", None)
+        self._clock_snapshot(state)
 
     def _finish_round(self, state: Dict[str, Any]) -> None:
         state["phase"] = "session_idle"
+        self._clock_snapshot(state)
         state.pop("pendingRound", None)
         state.setdefault("pendingInboundMoves", {}).clear()
         state.setdefault("pendingOutboundMoves", {}).clear()
@@ -1722,6 +1797,9 @@ class QortalLandGameManager:
 
     def _append_accepted_move(self, state: Dict[str, Any], move: Dict[str, Any]) -> None:
         self._validate_move_shape(state, move)
+        clock = self._clock(state)
+        if clock:
+            clock.validate(move)
         state.setdefault("transcript", []).append({**move, "type": "MOVE"})
 
     def _on_channel(self, match_id: str, message: MessageBase) -> bool:
@@ -1875,6 +1953,9 @@ class QortalLandGameManager:
                 return True
             try:
                 self._validate_move_shape(state, normalized_move)
+                clock = self._clock(state)
+                if clock:
+                    clock.validate(normalized_move)
             except Exception as exc:
                 self._protocol_error(state, str(exc))
                 return True
@@ -1905,6 +1986,7 @@ class QortalLandGameManager:
                 self._protocol_error(state, str(exc))
                 return True
             pending_outbound.pop(message_id, None)
+            self._clock_commit(state, pending_move)
             self.send_event("GAME_MESSAGE", {"matchId": match_id, "message": game_message})
             return True
         seen = state.setdefault("seen", set())
@@ -1931,6 +2013,20 @@ class QortalLandGameManager:
             self._flush_game_send_queue(state)
             self.send_event("GAME_STARTED", self._public_state(state))
         else:
+            if message_type == "RESIGN" and game_message.get("reason") == "timeout":
+                clock = self._clock(state)
+                if not clock or clock.turn == clock.local_seat or clock.pending is not None:
+                    self._protocol_error(state, "invalid_chess_timeout")
+                    return True
+                state["clockTimeoutSeat"] = clock.turn
+                clock.pause()
+                acknowledgement = {"type": "RESIGN_ACK", "matchId": match_id,
+                                   "roundId": state.get("roundId"), "messageId": str(uuid.uuid4())}
+                state.setdefault("moveAcks", {})[message_id] = acknowledgement
+                self._send_game_payload(state, acknowledgement)
+                self.send_event("GAME_MESSAGE", {"matchId": match_id, "message": game_message})
+                self._finish_round(state)
+                return True
             self.send_event("GAME_MESSAGE", {"matchId": match_id, "message": game_message})
             if message_type in {"RESIGN_ACK", "GAME_OVER_ACK"}:
                 self._finish_round(state)
@@ -1983,6 +2079,9 @@ class QortalLandGameManager:
                 or not valid_hex(fields.get("recipientNonce"), 16)
             ):
                 raise ValueError("invalid_accept")
+            self._validate_chess_selection(state, fields.get("chessWhiteSeat"))
+            if "chessWhiteSeat" in fields:
+                state["chessWhiteSeat"] = fields["chessWhiteSeat"]
             state["recipientNonce"] = fields["recipientNonce"]
             state["acceptEnvelope"] = envelope
             accept_hash = hashlib.sha256(canonical_bytes(envelope)).hexdigest()
@@ -2005,6 +2104,7 @@ class QortalLandGameManager:
                 {
                     "matchId": state["matchId"],
                     "accepted": True,
+                    **({"chessWhiteSeat": state["chessWhiteSeat"]} if "chessWhiteSeat" in state else {}),
                     "recipientNonce": state["recipientNonce"],
                 },
             )
@@ -2130,12 +2230,29 @@ class QortalLandGameManager:
             self.send_event("GAME_STARTED", self._public_state(state))
 
     def _starter(self, state: Dict[str, Any]) -> str:
+        if state.get("game") in {"chess", "chess960"}:
+            color = state.get("chessColor")
+            if color == "white":
+                return "requester"
+            if color == "black":
+                return "recipient"
+            if color == "choose":
+                self._validate_chess_selection(state, state.get("chessWhiteSeat"))
+                return "requester" if state["chessWhiteSeat"] == 1 else "recipient"
         round_id = state.get("roundId") or state["matchId"]
         requester_nonce = state.get("roundRequesterNonce") or state["requesterNonce"]
         recipient_nonce = state.get("roundRecipientNonce") or state["recipientNonce"]
         prefix = f"qortalland-game:v2:{state.get('game') or 'connect-four'}:".encode("utf-8")
         digest = hashlib.sha256(prefix + uuid.UUID(round_id).bytes + bytes.fromhex(requester_nonce) + bytes.fromhex(recipient_nonce)).digest()
         return "requester" if digest[-1] & 1 == 0 else "recipient"
+
+    @staticmethod
+    def _chess960_position(state):
+        round_id = state.get("roundId") or state["matchId"]
+        requester_nonce = state.get("roundRequesterNonce") or state["requesterNonce"]
+        recipient_nonce = state.get("roundRecipientNonce") or state["recipientNonce"]
+        digest = hashlib.sha256(b"qortalland-game:v2:chess960:" + uuid.UUID(round_id).bytes + bytes.fromhex(requester_nonce) + bytes.fromhex(recipient_nonce)).digest()
+        return int.from_bytes(digest[:4], "big") % 960
 
     def _initial_state_hash(self, state: Dict[str, Any]) -> str:
         next_seat = 1 if self._starter(state) == "requester" else 2
@@ -2159,11 +2276,12 @@ class QortalLandGameManager:
                 "quietPly": 0,
                 "rulesVersion": state.get("rulesVersion") or 1,
             }
-        elif state.get("game") == "chess":
+        elif state.get("game") in {"chess", "chess960"}:
             white_seat = 1 if self._starter(state) == "requester" else 2
             black_seat = 2 if white_seat == 1 else 1
             signed = lambda seat, kind: kind if seat == 1 else -kind
-            back_rank = [4, 2, 3, 5, 6, 3, 2, 4]
+            position = self._chess960_position(state) if state.get("game") == "chess960" else None
+            back_rank = chess960_back_rank(position) if position is not None else [4, 2, 3, 5, 6, 3, 2, 4]
             board = [0] * 64
             for column, kind in enumerate(back_rank):
                 board[column] = signed(black_seat, kind)
@@ -2174,7 +2292,7 @@ class QortalLandGameManager:
                 "board": board,
                 "castlingRights": [True, True, True, True],
                 "enPassant": None,
-                "game": "chess",
+                "game": state["game"],
                 "halfmoveClock": 0,
                 "nextSeat": white_seat,
                 "outcome": None,
@@ -2183,6 +2301,8 @@ class QortalLandGameManager:
                 "rulesVersion": state.get("rulesVersion") or 1,
                 "whiteSeat": white_seat,
             }
+            if position is not None:
+                value["chess960"] = position
         else:
             value = {
                 "board": [0] * 42,
@@ -2292,11 +2412,23 @@ class QortalLandGameManager:
             self._validate_move_shape(state, normalized_move)
             if state.setdefault("pendingOutboundMoves", {}) or state.setdefault("pendingInboundMoves", {}):
                 raise ValueError("move_already_pending")
+            clock = self._clock(state)
+            if clock:
+                try:
+                    game_message["clockRemainingMs"] = clock.submit()
+                except ValueError as exc:
+                    if str(exc) == "chess_time_expired":
+                        self._clock_expire(state)
+                    raise
+                normalized_move = {**game_message, "type": "MOVE"}
             state["pendingOutboundMoves"][message_id] = normalized_move
             try:
                 self._send_game_payload(state, game_message)
             except Exception:
                 state["pendingOutboundMoves"].pop(message_id, None)
+                if clock:
+                    clock.recover()
+                    clock.resume()
                 raise
             return
         if message_type == "MOVE_ACK":
@@ -2322,6 +2454,7 @@ class QortalLandGameManager:
                 raise
             state["pendingInboundMoves"].pop(message_id, None)
             state.setdefault("moveAcks", {})[message_id] = game_message
+            self._clock_commit(state, pending_move)
             return
         self._send_game_payload(state, game_message)
         if message_type in {"RESIGN", "GAME_OVER"}:
@@ -2359,6 +2492,7 @@ class QortalLandGameManager:
         while not self.stop_event.wait(1):
             self.enqueue(self.proximity.tick, ())
             self.enqueue(self._flush_game_send_queues, ())
+            self.enqueue(self._clock_tick, ())
             now = time.time()
             for nonce_key, expiry in list(self.used_nonces.items()):
                 if expiry <= now:
@@ -2418,6 +2552,9 @@ class QortalLandGameManager:
         state = self._state_for_link(link)
         if not state:
             return
+        clock = self._clock(state)
+        if clock:
+            clock.recover()
         if state.get("phase") == "establishing" and state.get("link") is link:
             with self.lock:
                 self.links_by_object.pop(id(link), None)
@@ -2579,11 +2716,79 @@ class QortalLandGameManager:
             match_id = self.links_by_object.get(id(link))
             return self.matches.get(match_id) if match_id else None
 
+    def _clock(self, state):
+        if state.get("game") not in {"chess", "chess960"} or not state.get("chessTime") or not state.get("recipientNonce"):
+            return None
+        if "chessClock" not in state:
+            state["chessClock"] = ChessClock(
+                state["chessTime"], 1 if self._starter(state) == "requester" else 2,
+                1 if state.get("outbound") else 2,
+            )
+        return state["chessClock"]
+
+    def _clock_snapshot(self, state):
+        clock = self._clock(state)
+        if not clock:
+            return None
+        if state.get("phase") == "active" and not state.get("pendingOutboundMoves") and not state.get("clockTimeoutSeat"):
+            clock.resume()
+        else:
+            clock.pause()
+        snapshot = clock.snapshot()
+        if state.get("clockTimeoutSeat"):
+            snapshot["remainingMs"][state["clockTimeoutSeat"] - 1] = 0
+            snapshot["runningSeat"] = None
+        return snapshot
+
+    def _clock_commit(self, state, move):
+        clock = self._clock(state)
+        if clock:
+            clock.commit(move)
+            self.send_event("GAME_CLOCK", {
+                "matchId": state["matchId"], "roundId": state.get("roundId"),
+                "clock": self._clock_snapshot(state),
+            })
+
+    def _clock_expire(self, state):
+        clock = self._clock(state)
+        if not clock or state.get("clockTimeoutSeat") or state.get("phase") != "active":
+            return
+        state["clockTimeoutSeat"] = clock.local_seat
+        clock.pause()
+        try:
+            self._send_active({"matchId": state["matchId"], "message": {
+                "type": "RESIGN", "reason": "timeout", "messageId": str(uuid.uuid4()),
+            }})
+        except Exception:
+            state.pop("clockTimeoutSeat", None)
+            raise
+        self.send_event("GAME_TIMEOUT", {
+            **self._public_state(state), "loser": clock.local_seat,
+        })
+
+    def _clock_tick(self):
+        with self.lock:
+            states = list(self.matches.values())
+        for state in states:
+            snapshot = self._clock_snapshot(state)
+            clock = self._clock(state)
+            if not snapshot:
+                continue
+            if state.get("phase") == "active" and not state.get("pendingOutboundMoves") and clock.expired():
+                self._clock_expire(state)
+            elif state.get("phase") in {"active", "recovering"}:
+                self.send_event("GAME_CLOCK", {
+                    "matchId": state["matchId"], "roundId": state.get("roundId"), "clock": snapshot,
+                })
+
     def _public_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         pending_outbound = list(state.get("pendingOutboundMoves", {}).values())
         return {
             "matchId": state["matchId"],
+            "roundId": state.get("roundId") or state["matchId"],
             "game": state.get("game") or "connect-four",
+            **{key: state[key] for key in ("chessColor", "chessTime") if key in state},
+            **({"chessWhiteSeat": state["chessWhiteSeat"]} if "chessWhiteSeat" in state else {}),
             "gameVersion": state.get("gameVersion") or 1,
             "rulesVersion": state.get("rulesVersion") or 1,
             "requesterAddress": state["requester"],
@@ -2596,6 +2801,8 @@ class QortalLandGameManager:
             "recipientNonce": state.get("roundRecipientNonce") or state.get("recipientNonce"),
             "starter": self._starter(state) if state.get("recipientNonce") else None,
             "phase": state.get("phase"),
+            "timeoutSeat": state.get("clockTimeoutSeat"),
+            **({"clock": self._clock_snapshot(state)} if state.get("chessTime") else {}),
             "expiresAt": state.get("expiresAt"),
             "transcript": list(state.get("transcript") or []),
             "pendingOutboundMove": pending_outbound[0] if pending_outbound else None,

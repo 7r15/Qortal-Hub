@@ -29,13 +29,28 @@ import {
 import { CheckersGameDialog } from './CheckersGameDialog';
 import {
   applyChessMove,
+  chessTimeoutOutcome,
+  type ChessOutcome,
   createChessState,
-  deriveChessStartingSeat,
   hashChessState,
   type ChessMove,
   type ChessPromotion,
   type ChessState,
 } from './chess';
+import { ChessChallengeDialog } from './ChessChallengeDialog';
+import { ChessColorControl } from './ChessColorControl';
+import { useChessTurnNotice } from './useChessTurnNotice';
+import { deriveChess960Position } from './chess960';
+import {
+  isChessGame,
+  chessStartingSeat,
+  readChessOptions,
+  type ChessColorChoice,
+  type ChessTimeControl,
+  type ChessOptions,
+} from './chessOptions';
+import { ChessClockDisplay, ChessTimeSummary } from './ChessClockDisplay';
+import { readChessClock, sampleChessClock, type ChessClockView } from './chessClock';
 import { ChessGameDialog } from './ChessGameDialog';
 import { ChessSpectatorDialog } from './ChessSpectatorDialog';
 import {
@@ -61,15 +76,18 @@ type Target = {
   destinationHash: string;
   name?: string;
 };
-export type QortalLandGameId = 'connect-four' | 'checkers' | 'chess';
+export type QortalLandGameId = 'connect-four' | 'checkers' | 'chess' | 'chess960';
 export type QortalLandGameState = ConnectFourState | CheckersState | ChessState;
 export type QortalLandGameMove = ConnectFourMove | CheckersMove | ChessMove;
-export type QortalLandGameMatchView = Omit<ConnectFourGameView, 'state' | 'moves'> & {
+export type QortalLandGameMatchView = Omit<ConnectFourGameView, 'state' | 'moves' | 'outcome'> & {
   game: QortalLandGameId;
   state?: QortalLandGameState;
   moves: QortalLandGameMove[];
   spectatorsEnabled?: boolean;
-};
+  outcome?: ConnectFourGameView['outcome'] | ChessOutcome;
+  clock?: ChessClockView;
+} & ChessOptions;
+
 type Match = QortalLandGameMatchView & {
   requesterSessionId?: string;
   recipientSessionId?: string;
@@ -80,27 +98,27 @@ type Match = QortalLandGameMatchView & {
   remoteSpectatorsSupported?: boolean;
 };
 const isGameId = (value: unknown): value is QortalLandGameId =>
-  value === 'connect-four' || value === 'checkers' || value === 'chess';
+  value === 'connect-four' || value === 'checkers' || isChessGame(value);
 
 const gameMaxPly = (game: QortalLandGameId): number =>
   game === 'connect-four' ? 42 : game === 'checkers' ? 200 : 600;
 
 const gameConfig = (game: QortalLandGameId) => ({ game, gameVersion: 1, rulesVersion: 1 });
 
-const deriveStartingSeat = (game: QortalLandGameId, roundId: string, requesterNonce: string, recipientNonce: string) =>
+const deriveStartingSeat = (game: QortalLandGameId, roundId: string, requesterNonce: string, recipientNonce: string, options: ChessOptions = {}) =>
   game === 'checkers'
     ? deriveCheckersStartingSeat(roundId, requesterNonce, recipientNonce)
-    : game === 'chess'
-      ? deriveChessStartingSeat(roundId, requesterNonce, recipientNonce)
+    : isChessGame(game)
+      ? chessStartingSeat(options, roundId, requesterNonce, recipientNonce, game)
       : deriveConnectFourStartingSeat(roundId, requesterNonce, recipientNonce);
 
-const createGameState = (game: QortalLandGameId, seat: ConnectFourSeat) =>
-  game === 'checkers' ? createCheckersState(seat) : game === 'chess' ? createChessState(seat) : createConnectFourState(seat);
+const createGameState = (game: QortalLandGameId, seat: ConnectFourSeat, position?: number) =>
+  game === 'checkers' ? createCheckersState(seat) : isChessGame(game) ? createChessState(seat, position) : createConnectFourState(seat);
 
 const hashGameState = (game: QortalLandGameId, state: QortalLandGameState) =>
   game === 'checkers'
     ? hashCheckersState(state as CheckersState)
-    : game === 'chess'
+    : isChessGame(game)
       ? hashChessState(state as ChessState)
       : hashConnectFourState(state as ConnectFourState);
 
@@ -109,7 +127,7 @@ const applyGameMove = (game: QortalLandGameId, state: QortalLandGameState, seat:
     if (!Number.isInteger(move.from) || !Array.isArray(move.path)) throw new Error(i18n.t('group:qortal_land.games.errors.invalid_checkers_move'));
     return applyCheckersMove(state as CheckersState, seat, Number(move.from), move.path.map(Number));
   }
-  if (game === 'chess') {
+  if (isChessGame(game)) {
     if (!Number.isInteger(move.from) || !Number.isInteger(move.to)) throw new Error(i18n.t('group:qortal_land.games.errors.invalid_chess_move'));
     const promotion = move.promotion === undefined ? undefined : Number(move.promotion) as ChessPromotion;
     return applyChessMove(state as ChessState, seat, Number(move.from), Number(move.to), promotion);
@@ -189,7 +207,7 @@ export const isRetryableQortalLandGameTransportError = (
 
 export const canSignQortalLandGameHandshake = (
   fields: Record<string, unknown>,
-  current: (Pick<Match, 'matchId' | 'requesterAddress' | 'recipientAddress' | 'requesterNonce'> & Partial<Pick<Match, 'recipientNonce' | 'roundId' | 'game'>>) | null,
+  current: (Pick<Match, 'matchId' | 'requesterAddress' | 'recipientAddress' | 'requesterNonce'> & Partial<Pick<Match, 'recipientNonce' | 'roundId' | 'game' | 'chessColor' | 'chessWhiteSeat' | 'chessTime' | 'requesterSessionId' | 'recipientSessionId' | 'requesterDestinationHash' | 'recipientDestinationHash'>>) | null,
   address: string,
   publicKey: string
 ): boolean => {
@@ -229,6 +247,8 @@ export const canSignQortalLandGameHandshake = (
     if (type === 'QORTAL_LAND_GAME_INVITE') {
       return (
         fields.protocolVersion === 2 &&
+        fields.chessColor === current.chessColor &&
+        fields.chessTime === current.chessTime &&
         fields.game === (current.game || 'connect-four') &&
         fields.gameVersion === 1 &&
         fields.rulesVersion === 1 &&
@@ -260,7 +280,8 @@ export const canSignQortalLandGameHandshake = (
     if (type === 'QORTAL_LAND_GAME_ACCEPT') {
       return (
         fields.requesterNonce === current.requesterNonce &&
-        fields.recipientNonce === current.recipientNonce
+        fields.recipientNonce === current.recipientNonce &&
+        fields.chessWhiteSeat === current.chessWhiteSeat
       );
     }
     if (type === 'QORTAL_LAND_GAME_RESUME_ACCEPT') {
@@ -291,6 +312,9 @@ export function useQortalLandGame(options: Options) {
   const [transportReady, setTransportReady] = useState(false);
   const [localDestinationHash, setLocalDestinationHash] = useState('');
   const [match, setMatch] = useState<Match | null>(null);
+  const [challengeTarget, setChallengeTarget] = useState<{ target: Target; game: 'chess' | 'chess960' } | null>(null);
+  const [chosenWhiteSeat, setChosenWhiteSeat] = useState<1 | 2>(2);
+  const turnNotice = useChessTurnNotice(match, isAppLocked || doNotDisturb || !enabled);
   const [now, setNow] = useState(Date.now());
   const matchRef = useRef<Match | null>(null);
   const eventChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -310,6 +334,7 @@ export function useQortalLandGame(options: Options) {
   const spectatorContextRef = useRef('');
 
   useEffect(() => {
+    setChallengeTarget(null);
     spectatorContextRef.current = `${address}:${groupId}:${sessionId}`;
     spectatorAttestationsRef.current.clear();
     spectatorMatchesRef.current.clear();
@@ -365,6 +390,19 @@ export function useQortalLandGame(options: Options) {
     matchRef.current = next;
     setMatch(next);
   }, []);
+
+  useEffect(() => {
+    if (match?.phase !== 'active' && match?.clock?.runningSeat) {
+      updateMatch((value) => value?.clock ? {
+        ...value,
+        clock: {
+          ...value.clock,
+          ...sampleChessClock(value.clock, Date.now()),
+          runningSeat: null,
+        },
+      } : value);
+    }
+  }, [match?.phase, match?.clock?.runningSeat, updateMatch]);
   const appendSpectatorChat = useCallback((chat: ChessSpectatorChat) => {
     const chatKey = spectatorChatKey(chat.matchId, chat.roundId);
     const message: GameChatMessage = {
@@ -519,8 +557,9 @@ export function useQortalLandGame(options: Options) {
     requesterNonce: string,
     recipientNonce: string
   ) => {
-    const startingSeat = await deriveStartingSeat(current.game, roundId, requesterNonce, recipientNonce);
-    const state = createGameState(current.game, startingSeat);
+    const startingSeat = await deriveStartingSeat(current.game, roundId, requesterNonce, recipientNonce, current);
+    const position = current.game === 'chess960' ? await deriveChess960Position(roundId, requesterNonce, recipientNonce) : undefined;
+    const state = createGameState(current.game, startingSeat, position);
     const stateHash = await hashGameState(current.game, state);
     updateMatch((value) => value?.matchId === current.matchId ? {
       ...value,
@@ -530,6 +569,7 @@ export function useQortalLandGame(options: Options) {
       startingSeat,
       localSeat: address === value.requesterAddress ? 1 : 2,
       phase: 'active',
+      clock: undefined,
       state,
       stateHash,
       moves: [],
@@ -562,7 +602,7 @@ export function useQortalLandGame(options: Options) {
   }, [t]);
 
   useEffect(() => {
-    if (match?.game !== 'chess' || match.phase !== 'active' || !transportReady) return;
+    if (!isChessGame(match?.game) || match.phase !== 'active' || !transportReady) return;
     try {
       send('SEND_GAME_MESSAGE', {
         matchId: match.matchId,
@@ -575,7 +615,7 @@ export function useQortalLandGame(options: Options) {
     const current = matchRef.current;
     if (
       !current ||
-      current.game !== 'chess' ||
+      !isChessGame(current.game) ||
       !current.spectatorsEnabled ||
       !current.state ||
       !current.stateHash ||
@@ -602,6 +642,14 @@ export function useQortalLandGame(options: Options) {
       recipientAddress: current.recipientAddress,
       state,
       stateHash,
+      ...(current.clock ? {
+        clock: {
+          ...sampleChessClock(current.clock, Date.now()),
+          runningSeat: current.phase === 'active' && !state.outcome
+            ? current.clock.runningSeat
+            : null,
+        },
+      } : {}),
       phase:
         current.phase === 'finished' || state.outcome
           ? 'finished'
@@ -632,7 +680,7 @@ export function useQortalLandGame(options: Options) {
 
   useEffect(() => {
     if (
-      match?.game !== 'chess' ||
+      !isChessGame(match?.game) ||
       !match.spectatorsEnabled ||
       !match.stateHash ||
       !['active', 'finishing', 'finished'].includes(match.phase)
@@ -651,7 +699,7 @@ export function useQortalLandGame(options: Options) {
   ]);
 
   useEffect(() => {
-    if (match?.game !== 'chess' || !match.spectatorsEnabled) return;
+    if (!isChessGame(match?.game) || !match.spectatorsEnabled) return;
     const interval = window.setInterval(() => {
       void publishCurrentSpectatorSnapshot().catch(() => undefined);
     }, CHESS_SPECTATOR_SNAPSHOT_TTL_MS / 2);
@@ -660,7 +708,7 @@ export function useQortalLandGame(options: Options) {
 
   useEffect(() => {
     const sharing = Boolean(
-      match?.game === 'chess' &&
+      isChessGame(match?.game) &&
       match.spectatorsEnabled &&
       match.roundId &&
       ['active', 'finishing', 'finished'].includes(match.phase)
@@ -691,7 +739,7 @@ export function useQortalLandGame(options: Options) {
     const current = matchRef.current;
     if (
       !current ||
-      current.game !== 'chess' ||
+      !isChessGame(current.game) ||
       !current.remoteSpectatorsSupported ||
       !['active', 'finishing'].includes(current.phase)
     ) {
@@ -759,7 +807,7 @@ export function useQortalLandGame(options: Options) {
       return;
     }
     if (message.type === 'SPECTATOR_PERMISSION') {
-      if (current.game !== 'chess' || message.roundId !== current.roundId || typeof message.enabled !== 'boolean') return;
+      if (!isChessGame(current.game) || message.roundId !== current.roundId || typeof message.enabled !== 'boolean') return;
       updateMatch((value) => {
         if (!value || value.matchId !== current.matchId) return value;
         const remoteSpectatorsAllowed = message.enabled === true;
@@ -854,8 +902,27 @@ export function useQortalLandGame(options: Options) {
     }
     if (message.type === 'RESIGN') {
       const winner = current.localSeat;
-      send('SEND_GAME_MESSAGE', { matchId: current.matchId, message: { type: 'RESIGN_ACK', messageId: crypto.randomUUID() } });
-      replaceMatch({ ...current, phase: 'finished', outcome: { type: 'resigned', winner } });
+      const timedOut = message.reason === 'timeout' && isChessGame(current.game);
+      const loser = winner === 1 ? 2 : 1;
+      // Timeouts are acknowledged by the game service, even without a renderer.
+      if (!timedOut) {
+        send('SEND_GAME_MESSAGE', {
+          matchId: current.matchId,
+          message: { type: 'RESIGN_ACK', messageId: crypto.randomUUID() },
+        });
+      }
+      const clock = current.clock
+        ? { ...current.clock, ...sampleChessClock(current.clock, Date.now()), runningSeat: null }
+        : undefined;
+      if (timedOut && clock) clock.remainingMs[loser - 1] = 0;
+      replaceMatch({
+        ...current,
+        phase: 'finished',
+        outcome: timedOut
+          ? chessTimeoutOutcome(current.state as ChessState, loser)
+          : { type: 'resigned', winner },
+        clock,
+      });
       return;
     }
     if (message.type === 'RESIGN_ACK') {
@@ -962,6 +1029,10 @@ export function useQortalLandGame(options: Options) {
       });
       return;
     }
+    if (event.type === 'GAME_CLOCK' && event.matchId === matchRef.current?.matchId && event.roundId === matchRef.current?.roundId) {
+      updateMatch((value) => value && ({ ...value, clock: readChessClock(event.clock) }));
+      return;
+    }
     if (event.type === 'COMMAND_RESULT' && event.ok === false) {
       const requestId = String(event.requestId || '');
       const pending = pendingCommandsRef.current.get(requestId);
@@ -970,7 +1041,7 @@ export function useQortalLandGame(options: Options) {
         return;
       }
       const error = String(event.error || t('group:qortal_land.games.errors.command_failed'));
-      if (pending.type.endsWith(':CHAT_TYPING')) return;
+      if (pending.type.endsWith(':CHAT_TYPING') || error === 'chess_time_expired') return;
       if (pending.type.endsWith(':CHAT_MESSAGE')) {
         updateMatch((value) => value && ({
           ...value,
@@ -1030,10 +1101,12 @@ export function useQortalLandGame(options: Options) {
         });
         return;
       }
+      setChosenWhiteSeat(2);
       onPlayerSeen?.(String(event.requesterAddress));
       replaceMatch({
         matchId: String(event.matchId), requesterAddress: String(event.requesterAddress),
         game: event.game,
+        ...readChessOptions(event),
         roundId: String(event.matchId),
         recipientAddress: String(event.recipientAddress || address),
         requesterSessionId: String(event.sourceSessionId || ''),
@@ -1049,7 +1122,7 @@ export function useQortalLandGame(options: Options) {
       });
       return;
     }
-    if (event.type === 'GAME_STARTED' || event.type === 'GAME_SNAPSHOT') {
+    if (event.type === 'GAME_STARTED' || event.type === 'GAME_SNAPSHOT' || event.type === 'GAME_TIMEOUT') {
       if (matchRef.current && event.matchId !== matchRef.current.matchId) return;
       const requesterAddress = String(event.requesterAddress);
       const recipientAddress = String(event.recipientAddress);
@@ -1067,6 +1140,7 @@ export function useQortalLandGame(options: Options) {
         replaceMatch({
           matchId: String(event.matchId),
           game: eventGame,
+          ...readChessOptions(event),
           roundId,
           requesterAddress,
           recipientAddress,
@@ -1086,13 +1160,14 @@ export function useQortalLandGame(options: Options) {
         });
         return;
       }
-      if (transportPhase === 'session_idle' || transportPhase === 'round_waiting' || transportPhase === 'round_incoming') {
+      if ((transportPhase === 'session_idle' && event.timeoutSeat !== 1 && event.timeoutSeat !== 2) || transportPhase === 'round_waiting' || transportPhase === 'round_incoming') {
         const pending = event.pendingRound && typeof event.pendingRound === 'object' && !Array.isArray(event.pendingRound)
           ? event.pendingRound as Record<string, unknown>
           : {};
         replaceMatch({
           matchId: String(event.matchId),
           game: isGameId(pending.game) ? pending.game : eventGame,
+          ...readChessOptions(event),
           roundId: String(pending.roundId || roundId),
           requesterAddress,
           recipientAddress,
@@ -1112,9 +1187,10 @@ export function useQortalLandGame(options: Options) {
         });
         return;
       }
-      const startingSeat = await deriveStartingSeat(eventGame, roundId, requesterNonce, recipientNonce);
+      const startingSeat = await deriveStartingSeat(eventGame, roundId, requesterNonce, recipientNonce, readChessOptions(event));
       const localSeat: ConnectFourSeat = address === requesterAddress ? 1 : 2;
-      let state = createGameState(eventGame, startingSeat);
+      const position = eventGame === 'chess960' ? await deriveChess960Position(roundId, requesterNonce, recipientNonce) : undefined;
+      let state = createGameState(eventGame, startingSeat, position);
       let stateHash = await hashGameState(eventGame, state);
       const transcript = Array.isArray(event.transcript) ? event.transcript : [];
       const moves: QortalLandGameMove[] = [];
@@ -1157,6 +1233,7 @@ export function useQortalLandGame(options: Options) {
       updateMatch((previous) => ({
         ...(previous || {} as Match), matchId: String(event.matchId), roundId, requesterAddress,
         game: eventGame,
+        ...readChessOptions(event),
         recipientAddress, requesterSessionId, recipientSessionId,
         requesterDestinationHash, recipientDestinationHash,
         requesterNonce, recipientNonce, startingSeat,
@@ -1167,18 +1244,23 @@ export function useQortalLandGame(options: Options) {
             ? 'starting'
             : transportPhase === 'ending'
               ? 'finishing'
-              : pendingMoveId
-                ? 'active'
-                : state.outcome
-                  ? 'finished'
-                  : 'active',
+              : event.timeoutSeat === 1 || event.timeoutSeat === 2
+                ? 'finished'
+                : pendingMoveId
+                  ? 'active'
+                  : state.outcome
+                    ? 'finished'
+                    : 'active',
         state,
         stateHash,
+        clock: readChessClock(event.clock),
         pendingMoveId,
         pendingSince: pendingMoveId ? Date.now() : undefined,
         moves,
         chatMessages: chatMessages.length ? chatMessages : previous?.chatMessages || [],
-        outcome: state.outcome || undefined,
+        outcome: (event.type === 'GAME_TIMEOUT' || event.timeoutSeat === 1 || event.timeoutSeat === 2) && isChessGame(eventGame)
+          ? chessTimeoutOutcome(state as ChessState, (event.loser ?? event.timeoutSeat) === 1 ? 1 : 2)
+          : state.outcome || undefined,
         sessionClosed: false,
         reconnectDeadline: ['recovering', 'awaiting_resume_accept', 'awaiting_resume_confirm'].includes(transportPhase) ? Date.now() + 30_000 : undefined,
         error: previous?.phase === 'reconnecting' ? undefined : previous?.error,
@@ -1200,6 +1282,7 @@ export function useQortalLandGame(options: Options) {
         updateMatch((value) => value && ({
           ...value,
           recipientNonce,
+          ...readChessOptions({ chessColor: value.chessColor, chessWhiteSeat: event.chessWhiteSeat }),
           phase: 'starting',
         }));
         return;
@@ -1341,7 +1424,7 @@ export function useQortalLandGame(options: Options) {
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
   }, []);
 
-  const challenge = useCallback(async (target: Target, game: QortalLandGameId = 'connect-four') => {
+  const sendChallenge = useCallback(async (target: Target, game: QortalLandGameId = 'connect-four', color: ChessColorChoice = 'random', time?: ChessTimeControl) => {
     onActivity?.();
     if (
       !transportReady ||
@@ -1352,7 +1435,7 @@ export function useQortalLandGame(options: Options) {
     const existing = matchRef.current;
     if (existing?.phase === 'session-idle') {
       const peer = existing.requesterAddress === address ? existing.recipientAddress : existing.requesterAddress;
-      if (peer === target.address) {
+      if (peer === target.address && !isChessGame(game) && !existing.chessColor && !existing.chessTime) {
         const roundId = crypto.randomUUID();
         const requesterNonce = randomHex(16);
         replaceMatch({ ...existing, game, roundId, requesterNonce, recipientNonce: undefined, phase: 'round-waiting', state: undefined, stateHash: undefined, moves: [], outcome: undefined, error: undefined });
@@ -1369,6 +1452,8 @@ export function useQortalLandGame(options: Options) {
     replaceMatch({
       matchId,
       game,
+      ...(isChessGame(game) && color !== 'random' ? { chessColor: color } : {}),
+      ...(isChessGame(game) && time ? { chessTime: time } : {}),
       roundId: matchId,
       requesterAddress: address,
       recipientAddress: target.address,
@@ -1390,8 +1475,16 @@ export function useQortalLandGame(options: Options) {
       targetDestinationHash: target.destinationHash,
       requesterNonce,
       game,
+      ...(isChessGame(game) && color !== 'random' ? { chessColor: color } : {}),
+      ...(isChessGame(game) && time ? { chessTime: time } : {}),
     });
   }, [address, localDestinationHash, onActivity, replaceMatch, resolvePlayerName, send, sessionId, t, transportReady]);
+
+  const challenge = useCallback(async (target: Target, game: QortalLandGameId = 'connect-four') => {
+    if (isChessGame(game)) {
+      if (transportReady && (!matchRef.current || matchRef.current.phase === 'session-idle')) setChallengeTarget({ target, game });
+    } else await sendChallenge(target, game);
+  }, [sendChallenge, transportReady]);
 
   const respond = useCallback((accepted: boolean) => {
     onActivity?.();
@@ -1413,18 +1506,22 @@ export function useQortalLandGame(options: Options) {
       }
       return;
     }
+    const selection = accepted && current.chessColor === 'choose'
+      ? { chessWhiteSeat: chosenWhiteSeat } : {};
     send('RESPOND_TO_INVITE', {
+      ...selection,
       matchId: current.matchId,
       decision: accepted ? 'accept' : 'decline',
       ...(accepted ? { recipientNonce } : { reason: 'declined' }),
     });
     replaceMatch({
       ...current,
+      ...selection,
       recipientNonce: recipientNonce || current.recipientNonce,
       phase: accepted ? 'starting' : 'finished',
       error: accepted ? undefined : 'declined',
     });
-  }, [beginRound, onActivity, replaceMatch, send, t]);
+  }, [beginRound, chosenWhiteSeat, onActivity, replaceMatch, send, t]);
 
   const playColumn = useCallback(async (column: number): Promise<boolean> => {
     onActivity?.();
@@ -1480,7 +1577,7 @@ export function useQortalLandGame(options: Options) {
   const playChessMove = useCallback(async (from: number, to: number, promotion?: ChessPromotion): Promise<boolean> => {
     onActivity?.();
     const current = matchRef.current;
-    if (moveInFlightRef.current || current?.game !== 'chess' || !current.state || !current.localSeat || current.phase !== 'active' || current.pendingMoveId || current.state.nextSeat !== current.localSeat) return false;
+    if (moveInFlightRef.current || !isChessGame(current?.game) || !current.state || !current.localSeat || current.phase !== 'active' || current.pendingMoveId || current.state.nextSeat !== current.localSeat) return false;
     moveInFlightRef.current = true;
     try {
       const previousStateHash = current.stateHash || await hashChessState(current.state as ChessState);
@@ -1748,10 +1845,37 @@ export function useQortalLandGame(options: Options) {
       resolvePlayerName={resolvePlayerName}
       transportReady={transportReady}
     />
-  ) : match?.game === 'chess' ? (
+  ) : isChessGame(match?.game) ? (
     <ChessGameDialog
       address={address}
-      spectatorControls={spectatorControls}
+      spectatorControls={
+        <>
+          {match.phase === 'incoming' && (
+            <>
+              <ChessColorControl
+                options={match}
+                selectedSeat={chosenWhiteSeat}
+                onChoose={setChosenWhiteSeat}
+              />
+              <ChessTimeSummary preset={match.chessTime} />
+            </>
+          )}
+          {match.state && turnNotice.control}
+          {match.game === 'chess960' && (
+            <Alert severity="info" sx={{ mb: 1 }}>
+              {t('group:qortal_land.games.chess_options.castle_help')}
+            </Alert>
+          )}
+          {match.state && match.clock && (
+            <ChessClockDisplay
+              clock={match.clock}
+              whiteSeat={(match.state as ChessState).whiteSeat}
+              now={now}
+            />
+          )}
+          {spectatorControls}
+        </>
+      }
       match={match}
       now={now}
       onClose={close}
@@ -1783,8 +1907,20 @@ export function useQortalLandGame(options: Options) {
 
   const modal = isAppLocked ? null : (
     <>
+      {challengeTarget && (
+        <ChessChallengeDialog
+          game={challengeTarget.game}
+          onCancel={() => setChallengeTarget(null)}
+          onChallenge={(color, time) => {
+            const target = challengeTarget;
+            setChallengeTarget(null);
+            void sendChallenge(target.target, target.game, color, time);
+          }}
+        />
+      )}
+      {turnNotice.popup}
       <GameSessionChatSharedContext.Provider
-        value={match?.game === 'chess' && match.spectatorsEnabled === true}
+        value={isChessGame(match?.game) && match.spectatorsEnabled === true}
       >
         {playerModal}
       </GameSessionChatSharedContext.Provider>

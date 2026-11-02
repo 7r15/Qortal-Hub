@@ -1,3 +1,4 @@
+import { readChessClock, type ChessClockView } from './chessClock';
 import i18n from '../../../i18n/i18n';
 import { hashChessState, type ChessState } from './chess';
 import type { GameChatMessage } from './GameSessionChat';
@@ -17,6 +18,7 @@ export type ChessSpectatorSnapshot = {
   phase: 'active' | 'finished';
   timestamp: number;
   expiresAt: number;
+  clock?: ChessClockView;
 };
 
 export type ChessSpectatorClose = {
@@ -72,9 +74,15 @@ export const isChessSpectatorState = (value: unknown): value is ChessState => {
       (outcome.type === 'draw' ||
         outcome.type === 'abandoned' ||
         outcome.type === 'protocol-error' ||
-        ((outcome.type === 'win' || outcome.type === 'resigned') &&
+        ((outcome.type === 'win' ||
+          outcome.type === 'resigned' ||
+          outcome.type === 'timeout') &&
           (outcome.winner === 1 || outcome.winner === 2))));
   return (
+    (state.chess960 === undefined ||
+      (Number.isInteger(state.chess960) &&
+        state.chess960 >= 0 &&
+        state.chess960 < 960)) &&
     Array.isArray(state.board) &&
     state.board.length === 64 &&
     state.board.every(
@@ -177,6 +185,7 @@ export function parseChessSpectatorEvent(
         phase,
         timestamp,
         expiresAt,
+        clock: readChessClock(payload.clock, timestamp),
       },
     };
   }

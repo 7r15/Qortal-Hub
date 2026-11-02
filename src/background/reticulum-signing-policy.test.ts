@@ -108,6 +108,39 @@ describe('Reticulum wallet signing policy', () => {
       ...invite,
       game: 'chess',
     });
+    for (const chessColor of ['white', 'black', 'choose']) {
+      expectAllowed(assertAllowedPresenceSigningPayload, {
+        ...invite,
+        game: 'chess',
+        chessColor,
+      });
+    }
+    expectAllowed(assertAllowedPresenceSigningPayload, {
+      ...invite,
+      game: 'chess960',
+      chessTime: '15+10',
+      chessColor: 'choose',
+    });
+    expect(() =>
+      assertAllowedPresenceSigningPayload({ ...invite, chessTime: '5+0' })
+    ).toThrow();
+    expect(() =>
+      assertAllowedPresenceSigningPayload({
+        ...invite,
+        game: 'chess960',
+        chessTime: '999+0',
+      })
+    ).toThrow();
+    expect(() =>
+      assertAllowedPresenceSigningPayload({ ...invite, chessColor: 'white' })
+    ).toThrow();
+    expect(() =>
+      assertAllowedPresenceSigningPayload({
+        ...invite,
+        game: 'chess',
+        chessColor: 'red',
+      })
+    ).toThrow();
     expect(() =>
       assertAllowedPresenceSigningPayload({ ...invite, game: 'backgammon' })
     ).toThrow();

@@ -1,3 +1,4 @@
+import { ChessClockDisplay } from './ChessClockDisplay';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import {
@@ -131,7 +132,11 @@ export function ChessSpectatorDialog({
         <VisibilityRoundedIcon color="primary" />
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontSize: 20, fontWeight: 750 }}>
-            {t('group:qortal_land.games.chess_spectator.title')}
+            {t(
+              state.chess960 === undefined
+                ? 'group:qortal_land.games.chess_spectator.title'
+                : 'group:qortal_land.games.chess_options.chess960_title'
+            )}
           </Typography>
           <Typography
             aria-live="polite"
@@ -148,6 +153,14 @@ export function ChessSpectatorDialog({
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
+      {snapshot.clock && (
+        <Box sx={{ px: 3 }}>
+          <ChessClockDisplay
+            clock={snapshot.clock}
+            whiteSeat={state.whiteSeat}
+          />
+        </Box>
+      )}
       <DialogContent
         sx={{
           display: 'grid',

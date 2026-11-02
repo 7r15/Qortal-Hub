@@ -1,3 +1,5 @@
+import { chess960BackRank } from './chess960';
+
 export const CHESS_SIZE = 8;
 export const CHESS_RULES_VERSION = 1;
 export const CHESS_MAX_PLIES = 600;
@@ -9,10 +11,12 @@ export type ChessOutcome =
   | { type: 'win'; winner: ChessSeat }
   | { type: 'draw' }
   | { type: 'resigned'; winner: ChessSeat }
+  | { type: 'timeout'; winner: ChessSeat }
   | { type: 'abandoned' }
   | { type: 'protocol-error' };
 
 export type ChessState = {
+  chess960?: number;
   board: ChessPiece[];
   nextSeat: ChessSeat;
   whiteSeat: ChessSeat;
@@ -49,10 +53,10 @@ const pawnRow = (state: ChessState, seat: ChessSeat) => seat === state.whiteSeat
 const promotionRow = (state: ChessState, seat: ChessSeat) => seat === state.whiteSeat ? 0 : 7;
 const rightIndex = (seat: ChessSeat, kingSide: boolean) => (seat === 1 ? 0 : 2) + (kingSide ? 0 : 1);
 
-export const createChessState = (whiteSeat: ChessSeat): ChessState => {
+export const createChessState = (whiteSeat: ChessSeat, chess960?: number): ChessState => {
   const blackSeat = otherChessSeat(whiteSeat);
   const board = Array.from({ length: 64 }, () => 0 as ChessPiece);
-  const backRank = [4, 2, 3, 5, 6, 3, 2, 4];
+  const backRank = chess960 === undefined ? [4, 2, 3, 5, 6, 3, 2, 4] : chess960BackRank(chess960);
   backRank.forEach((kind, column) => {
     board[indexOf(0, column)] = pieceFor(blackSeat, kind);
     board[indexOf(1, column)] = pieceFor(blackSeat, 1);
@@ -60,6 +64,7 @@ export const createChessState = (whiteSeat: ChessSeat): ChessState => {
     board[indexOf(7, column)] = pieceFor(whiteSeat, kind);
   });
   return {
+    ...(chess960 === undefined ? {} : { chess960 }),
     board, nextSeat: whiteSeat, whiteSeat, ply: 0, halfmoveClock: 0,
     castlingRights: [true, true, true, true], enPassant: null, outcome: null,
   };
@@ -109,6 +114,34 @@ const addDestination = (state: ChessState, seat: ChessSeat, moves: ChessMoveOpti
   return target === 0;
 };
 
+const rookFiles = (state: ChessState): number[] => state.chess960 === undefined
+  ? [0, 7] : chess960BackRank(state.chess960).flatMap((piece, file) => piece === 4 ? [file] : []);
+
+const chess960Castles = (state: ChessState, seat: ChessSeat, from: number): ChessMoveOption[] => {
+  const rank = chess960BackRank(state.chess960!);
+  const row = homeRow(state, seat);
+  if (from !== indexOf(row, rank.indexOf(6)) || isChessInCheck(state, seat)) return [];
+  const segment = (start: number, end: number) => Array.from({ length: Math.abs(end - start) + 1 }, (_, i) => start + i * Math.sign(end - start));
+  const moves: ChessMoveOption[] = [];
+  for (const [side, rookFile] of rookFiles(state).entries()) {
+    const kingSide = side === 1;
+    const rook = indexOf(row, rookFile);
+    const kingTo = indexOf(row, kingSide ? 6 : 2);
+    const rookTo = indexOf(row, kingSide ? 5 : 3);
+    if (!state.castlingRights[rightIndex(seat, kingSide)] || state.board[rook] !== pieceFor(seat, 4)) continue;
+    const path = [...segment(from, kingTo), ...segment(rook, rookTo)];
+    if (path.some((square) => square !== from && square !== rook && state.board[square] !== 0)) continue;
+    const withoutKing = { ...state, board: [...state.board] };
+    withoutKing.board[from] = 0;
+    if (segment(from, kingTo).slice(1, -1).some((square) => isChessSquareAttacked(withoutKing, square, otherChessSeat(seat)))) continue;
+    // King-to-rook notation also handles stationary-king and swap castling.
+    // The normal legal-move filter checks the final king position after both
+    // pieces move, including attacks uncovered by moving the rook.
+    moves.push({ from, to: rook });
+  }
+  return moves;
+};
+
 const pseudoMoves = (state: ChessState, seat: ChessSeat): ChessMoveOption[] => {
   const moves: ChessMoveOption[] = [];
   for (let from = 0; from < 64; from += 1) {
@@ -152,7 +185,8 @@ const pseudoMoves = (state: ChessState, seat: ChessSeat): ChessMoveOption[] => {
         const toColumn = column + dx;
         if (inside(toRow, toColumn)) addDestination(state, seat, moves, from, indexOf(toRow, toColumn));
       });
-      if (kind === 6 && row === homeRow(state, seat) && column === 4 && !isChessInCheck(state, seat)) {
+      if (kind === 6 && state.chess960 !== undefined) moves.push(...chess960Castles(state, seat, from));
+      if (kind === 6 && state.chess960 === undefined && row === homeRow(state, seat) && column === 4 && !isChessInCheck(state, seat)) {
         for (const kingSide of [true, false]) {
           if (!state.castlingRights[rightIndex(seat, kingSide)]) continue;
           const rookColumn = kingSide ? 7 : 0;
@@ -189,13 +223,20 @@ const applyUnchecked = (state: ChessState, seat: ChessSeat, move: ChessMoveOptio
   const board = [...state.board];
   const piece = board[move.from];
   const kind = chessPieceKind(piece);
-  const captured = board[move.to];
+  const castle960 = state.chess960 !== undefined && kind === 6 && board[move.to] === pieceFor(seat, 4);
+  const captured = castle960 ? 0 : board[move.to];
   board[move.from] = 0;
   if (kind === 1 && move.to === state.enPassant && captured === 0) {
     board[move.to - forward(state, seat) * 8] = 0;
   }
-  board[move.to] = move.promotion ? pieceFor(seat, move.promotion) : piece;
-  if (kind === 6 && Math.abs(columnOf(move.to) - columnOf(move.from)) === 2) {
+  if (!castle960) board[move.to] = move.promotion ? pieceFor(seat, move.promotion) : piece;
+  if (castle960) {
+    const kingSide = move.to > move.from;
+    const row = rowOf(move.from);
+    board[move.to] = 0;
+    board[indexOf(row, kingSide ? 6 : 2)] = piece;
+    board[indexOf(row, kingSide ? 5 : 3)] = pieceFor(seat, 4);
+  } else if (state.chess960 === undefined && kind === 6 && Math.abs(columnOf(move.to) - columnOf(move.from)) === 2) {
     const kingSide = columnOf(move.to) === 6;
     const row = rowOf(move.from);
     const rookFrom = indexOf(row, kingSide ? 7 : 0);
@@ -210,8 +251,9 @@ const applyUnchecked = (state: ChessState, seat: ChessSeat, move: ChessMoveOptio
   }
   for (const checkedSeat of [1, 2] as ChessSeat[]) {
     const row = homeRow(state, checkedSeat);
-    if (move.from === indexOf(row, 7) || move.to === indexOf(row, 7)) castlingRights[rightIndex(checkedSeat, true)] = false;
-    if (move.from === indexOf(row, 0) || move.to === indexOf(row, 0)) castlingRights[rightIndex(checkedSeat, false)] = false;
+    const [queenRook, kingRook] = rookFiles(state);
+    if (move.from === indexOf(row, kingRook) || move.to === indexOf(row, kingRook)) castlingRights[rightIndex(checkedSeat, true)] = false;
+    if (move.from === indexOf(row, queenRook) || move.to === indexOf(row, queenRook)) castlingRights[rightIndex(checkedSeat, false)] = false;
   }
   const enPassant = kind === 1 && Math.abs(rowOf(move.to) - rowOf(move.from)) === 2
     ? (move.from + move.to) / 2
@@ -238,6 +280,19 @@ const insufficientMaterial = (board: ChessPiece[]) => {
   }
   return false;
 };
+
+export function chessTimeoutOutcome(state: ChessState, loser: ChessSeat): ChessOutcome {
+  if (state.outcome) return state.outcome;
+  const winner = otherChessSeat(loser);
+  const material = state.board.filter((piece) => chessPieceSeat(piece) === winner && chessPieceKind(piece) !== 6);
+  const loneKnight = material.length === 1 && chessPieceKind(material[0]) === 2 &&
+    state.board.every((piece) => !piece || chessPieceSeat(piece) === winner || [5, 6].includes(chessPieceKind(piece)));
+  const bishops = state.board.flatMap((piece, square) => chessPieceKind(piece) === 3 ? [(rowOf(square) + columnOf(square)) % 2] : []);
+  const onlySameColorBishops = material.length > 0 && material.every((piece) => chessPieceKind(piece) === 3) &&
+    new Set(bishops).size === 1 && !state.board.some((piece) => [1, 2].includes(chessPieceKind(piece)));
+  return material.length === 0 || loneKnight || onlySameColorBishops || insufficientMaterial(state.board)
+    ? { type: 'draw' } : { type: 'timeout', winner };
+}
 
 export const applyChessMove = (state: ChessState, seat: ChessSeat, from: number, to: number, promotion?: ChessPromotion): ChessState => {
   if (state.outcome) throw new Error('Chess match has already finished');
@@ -266,18 +321,19 @@ const decodeHex = (value: string): Uint8Array => {
 export const hashChessState = async (state: ChessState): Promise<string> => {
   const canonical = JSON.stringify({
     board: state.board, castlingRights: state.castlingRights, enPassant: state.enPassant,
-    game: 'chess', halfmoveClock: state.halfmoveClock, nextSeat: state.nextSeat,
+    game: state.chess960 === undefined ? 'chess' : 'chess960', halfmoveClock: state.halfmoveClock, nextSeat: state.nextSeat,
     outcome: state.outcome, ply: state.ply, protocolVersion: 2,
     rulesVersion: CHESS_RULES_VERSION, whiteSeat: state.whiteSeat,
+    ...(state.chess960 === undefined ? {} : { chess960: state.chess960 }),
   });
   return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical))));
 };
 
-export const deriveChessStartingSeat = async (roundId: string, requesterNonce: string, recipientNonce: string): Promise<ChessSeat> => {
-  const parts = [new TextEncoder().encode('qortalland-game:v2:chess:'), decodeHex(roundId), decodeHex(requesterNonce), decodeHex(recipientNonce)];
+export const deriveChessStartingSeat = async (roundId: string, requesterNonce: string, recipientNonce: string, game: 'chess' | 'chess960' = 'chess'): Promise<ChessSeat> => {
+  const parts = [new TextEncoder().encode(`qortalland-game:v2:${game}:`), decodeHex(roundId), decodeHex(requesterNonce), decodeHex(recipientNonce)];
   const input = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let offset = 0;
   parts.forEach((part) => { input.set(part, offset); offset += part.length; });
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
-  return (digest.at(-1)! & 1) === 0 ? 1 : 2;
+  return (digest[digest.length - 1] & 1) === 0 ? 1 : 2;
 };

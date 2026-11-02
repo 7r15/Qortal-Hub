@@ -25,6 +25,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { useAtomValue } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { balanceAtom, userInfoAtom } from '../../atoms/global';
 import defaultCharacterSpritesheetUrl from '../../assets/qortalland/default-character-spritesheet.webp';
@@ -2799,6 +2800,7 @@ export function QortalLand({
   myAddress,
   isActive = true,
 }: QortalLandProps) {
+  const { t } = useTranslation(['group']);
   const theme = useTheme();
   const groupCall = useGroupCallContext();
   const balance = useAtomValue(balanceAtom);
@@ -11008,7 +11010,7 @@ export function QortalLand({
             </Button>
             {showGamePicker && actionTarget.authorAddress !== myAddress && (
               <Box sx={{ mt: 0.5 }}>
-                {(['connect-four', 'checkers', 'chess'] as const).map((game) => (
+                {(['connect-four', 'checkers', 'chess', 'chess960'] as const).map((game) => (
                   <Button
                     disabled={!canStartLandGame}
                     fullWidth
@@ -11027,7 +11029,7 @@ export function QortalLand({
                     }}
                     sx={{ color: '#f8fbff', fontSize: 12, justifyContent: 'flex-start', textTransform: 'none' }}
                   >
-                    {game === 'connect-four' ? 'Qonnect Four' : game === 'checkers' ? 'Checkers' : 'Chess'}
+                    {t(`group:qortal_land.games.chess_options.${game === 'connect-four' ? 'qonnect_title' : game === 'checkers' ? 'checkers_title' : game === 'chess960' ? 'chess960_title' : 'chess_title'}`)}
                   </Button>
                 ))}
               </Box>

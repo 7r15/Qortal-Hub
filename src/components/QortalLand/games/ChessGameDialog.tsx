@@ -1,6 +1,7 @@
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, Stack, Typography, alpha } from '@mui/material';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import chessPieceSprite from '../../../assets/chess/cburnett-chess-pieces.svg';
 import {
   chessPieceKind,
@@ -215,6 +216,8 @@ export function ChessGameDialog({
   address, match, now, transportReady, onClose, onPlayMove, onRematch,
   onResign, onRespond, onSendChat, onTyping, resolvePlayerName, spectatorControls,
 }: Props) {
+  const { t } = useTranslation(['group']);
+  const gameTitle = t(`group:qortal_land.games.chess_options.${match?.game === 'chess960' ? 'chess960_title' : 'chess_title'}`);
   const [selectedFrom, setSelectedFrom] = useState<number | null>(null);
   const [selectionHint, setSelectionHint] = useState('');
   const [promotion, setPromotion] = useState<{ from: number; to: number; options: ChessPromotion[] } | null>(null);
@@ -259,6 +262,9 @@ export function ChessGameDialog({
     if (resolvedOutcome.type === 'draw') return 'Draw';
     if (resolvedOutcome.type === 'abandoned') return 'Game abandoned';
     if (resolvedOutcome.type === 'protocol-error') return 'Game ended safely';
+    if (resolvedOutcome.type === 'timeout') return t(resolvedOutcome.winner === localSeat
+      ? 'group:qortal_land.games.chess_options.won_on_time'
+      : 'group:qortal_land.games.chess_options.lost_on_time');
     if (resolvedOutcome.type === 'resigned') {
       return resolvedOutcome.winner === localSeat ? `${opponentName} resigned` : 'You resigned';
     }
@@ -295,6 +301,11 @@ export function ChessGameDialog({
   const selectSquare = async (index: number) => {
     if (!localTurn || !state || !localSeat || promotion) return;
     const ownPiece = chessPieceSeat(state.board[index]) === localSeat;
+    if (ownPiece && state.chess960 !== undefined && selectedFrom !== null && chessPieceKind(state.board[selectedFrom]) === 6 && destinations.has(index)) {
+      setSelectedFrom(null);
+      await onPlayMove(selectedFrom, index);
+      return;
+    }
     if (ownPiece) {
       if (index === selectedFrom) {
         setSelectedFrom(null);
@@ -326,7 +337,7 @@ export function ChessGameDialog({
     return (
       <GameInvitationSentDialog
         expiresAt={match.expiresAt}
-        gameTitle="Chess"
+        gameTitle={gameTitle}
         now={now}
         onCancel={onClose}
         opponentName={opponentName}
@@ -367,7 +378,7 @@ export function ChessGameDialog({
         <DialogTitle sx={{ flex: '0 0 auto', px: canShowBoard ? { xs: 2.5, md: '34px' } : { xs: 2.5, sm: '26px' }, pb: canShowBoard ? '12px' : '14px', pt: canShowBoard ? { xs: 2.5, md: '30px' } : { xs: 2.25, sm: '24px' } }}>
           <Box sx={{ alignItems: 'center', display: 'flex' }}>
             <SportsEsportsRoundedIcon sx={{ color: '#22d8e4', height: 18, mr: '10px', width: 18 }} />
-            <Typography sx={{ fontSize: canShowBoard ? 21 : 19, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: '26px' }}>Chess</Typography>
+            <Typography sx={{ fontSize: canShowBoard ? 21 : 19, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: '26px' }}>{gameTitle}</Typography>
           </Box>
           {turnStatus && (canShowBoard || match.phase !== 'finished') && (
             <Typography
@@ -384,16 +395,16 @@ export function ChessGameDialog({
           {match.error && canShowBoard && <Alert severity="warning" sx={{ flex: '0 0 auto', mb: 1 }}>{friendlyGameStatus(match.error)}</Alert>}
           {!canShowBoard && (
             <Box sx={{ alignSelf: 'center', minHeight: 0, overflowY: 'auto', py: 1, textAlign: 'center', width: '100%' }}>
-              {match.phase === 'opening' && <><Typography>Preparing the Chess game...</Typography><LinearProgress sx={{ mt: 2 }} /></>}
+              {match.phase === 'opening' && <><Typography>{t('group:qortal_land.games.chess_options.preparing', { game: gameTitle })}</Typography><LinearProgress sx={{ mt: 2 }} /></>}
               {match.phase === 'waiting' && <><Typography>Waiting for {opponentName || 'the other player'} to respond...</Typography><LinearProgress sx={{ mt: 2 }} /></>}
-              {match.phase === 'round-waiting' && <><Typography>Waiting for {opponentName} to accept Chess...</Typography><LinearProgress sx={{ mt: 2 }} /></>}
+              {match.phase === 'round-waiting' && <><Typography>{t('group:qortal_land.games.chess_options.waiting', { name: opponentName, game: gameTitle })}</Typography><LinearProgress sx={{ mt: 2 }} /></>}
               {(match.phase === 'incoming' || match.phase === 'round-incoming') && (
                 <Stack alignItems="center" spacing={1.5}>
-                  <Typography sx={{ fontSize: 15, fontWeight: 700 }}>{match.phase === 'round-incoming' ? `${opponentName} would like to play Chess.` : `${resolvePlayerName?.(match.requesterAddress) || match.requesterName || shortAddress(match.requesterAddress)} invited you to Chess.`}</Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700 }}>{t('group:qortal_land.games.chess_options.invited', { name: opponentName, game: gameTitle })}</Typography>
                   {match.phase === 'incoming' && <Typography sx={{ color: '#8d99a8', fontSize: 13 }}>Invitation expires in {expiresIn}s</Typography>}
                 </Stack>
               )}
-              {match.phase === 'starting' && <><Typography>Starting Chess...</Typography><LinearProgress sx={{ mt: 2 }} /></>}
+              {match.phase === 'starting' && <><Typography>{t('group:qortal_land.games.chess_options.starting', { game: gameTitle })}</Typography><LinearProgress sx={{ mt: 2 }} /></>}
               {match.phase === 'finished' && (
                 <Stack alignItems="center" spacing={0.75}>
                   <Typography sx={{ fontSize: 18, fontWeight: 700, textAlign: 'center' }}>Game ended</Typography>
@@ -467,7 +478,7 @@ export function ChessGameDialog({
                   </Stack>
                 )}
                 <Box sx={{ alignItems: 'center', containerType: 'size', display: 'flex', justifyContent: 'center', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
-                <Box aria-label="Chess board" role="grid" sx={{ aspectRatio: '1 / 1', contain: 'layout paint', display: 'grid', flex: '0 0 auto', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gridTemplateRows: 'repeat(8, minmax(0, 1fr))', maxHeight: 640, maxWidth: 640, overflow: 'hidden', width: 'min(100%, 100cqh, 640px)' }}>
+                <Box aria-label={t('group:qortal_land.games.chess_options.board', { game: gameTitle })} role="grid" sx={{ aspectRatio: '1 / 1', contain: 'layout paint', display: 'grid', flex: '0 0 auto', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gridTemplateRows: 'repeat(8, minmax(0, 1fr))', maxHeight: 640, maxWidth: 640, overflow: 'hidden', width: 'min(100%, 100cqh, 640px)' }}>
                   {displayIndexes.map((index, displayIndex) => {
                     const piece = state.board[index];
                     const seat = chessPieceSeat(piece);

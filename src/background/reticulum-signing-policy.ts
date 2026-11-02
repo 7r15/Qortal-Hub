@@ -26,37 +26,43 @@ const presenceSchemas: Readonly<Record<string, SigningSchema>> = {
     'createdAt',
     'expiresAt',
   ]),
-  QORTAL_LAND_GAME_INVITE: schema([
-    'type',
-    'protocolVersion',
-    'game',
-    'gameVersion',
-    'rulesVersion',
-    'matchId',
-    'groupId',
-    'requesterAddress',
-    'recipientAddress',
-    'sourceSessionId',
-    'targetSessionId',
-    'sourceDestinationHash',
-    'targetDestinationHash',
-    'signerPublicKey',
-    'requesterNonce',
-    'linkId',
-    'createdAt',
-    'expiresAt',
-  ]),
-  QORTAL_LAND_GAME_ACCEPT: schema([
-    'type',
-    'inviteHash',
-    'matchId',
-    'requesterNonce',
-    'recipientNonce',
-    'responderAddress',
-    'signerPublicKey',
-    'linkId',
-    'createdAt',
-  ]),
+  QORTAL_LAND_GAME_INVITE: schema(
+    [
+      'type',
+      'protocolVersion',
+      'game',
+      'gameVersion',
+      'rulesVersion',
+      'matchId',
+      'groupId',
+      'requesterAddress',
+      'recipientAddress',
+      'sourceSessionId',
+      'targetSessionId',
+      'sourceDestinationHash',
+      'targetDestinationHash',
+      'signerPublicKey',
+      'requesterNonce',
+      'linkId',
+      'createdAt',
+      'expiresAt',
+    ],
+    ['chessColor', 'chessTime']
+  ),
+  QORTAL_LAND_GAME_ACCEPT: schema(
+    [
+      'type',
+      'inviteHash',
+      'matchId',
+      'requesterNonce',
+      'recipientNonce',
+      'responderAddress',
+      'signerPublicKey',
+      'linkId',
+      'createdAt',
+    ],
+    ['chessWhiteSeat']
+  ),
   QORTAL_LAND_GAME_DECLINE: schema([
     'type',
     'inviteHash',
@@ -694,10 +700,35 @@ function assertSafeGameHandshake(payload: Record<string, unknown>): void {
       throw new Error('Game handshake ply is invalid');
     }
   }
+  if (
+    'chessColor' in payload &&
+    (!['chess', 'chess960'].includes(String(payload.game)) ||
+      !['white', 'black', 'choose'].includes(String(payload.chessColor)))
+  ) {
+    throw new Error('Invalid chess color choice');
+  }
+  if (
+    'chessWhiteSeat' in payload &&
+    payload.chessWhiteSeat !== 1 &&
+    payload.chessWhiteSeat !== 2
+  ) {
+    throw new Error('Invalid chess color selection');
+  }
+  if (
+    'chessTime' in payload &&
+    (!['chess', 'chess960'].includes(String(payload.game)) ||
+      !['3+2', '5+0', '5+3', '10+0', '10+5', '15+10', '30+0'].includes(
+        String(payload.chessTime)
+      ))
+  ) {
+    throw new Error('Invalid chess time control');
+  }
   if (payload.type === 'QORTAL_LAND_GAME_INVITE') {
     if (
       payload.protocolVersion !== 2 ||
-      !['connect-four', 'checkers', 'chess'].includes(String(payload.game)) ||
+      !['connect-four', 'checkers', 'chess', 'chess960'].includes(
+        String(payload.game)
+      ) ||
       payload.gameVersion !== 1 ||
       payload.rulesVersion !== 1 ||
       typeof payload.groupId !== 'string' ||

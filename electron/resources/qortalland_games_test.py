@@ -15,6 +15,7 @@ from qortalland_games import (
     QortalLandGameManager,
     _b58encode,
     canonical_bytes,
+    chess960_back_rank,
     derive_qortal_address,
     umsgpack,
     verify_signature,
@@ -342,6 +343,75 @@ class QortalLandGameProtocolTest(unittest.TestCase):
             "cc48133f2305d376d6d48e9e858239ae9ea6db7af7692c607d68b0af8a70a8bb",
         )
 
+    def test_chess960_layout_and_initial_hash_match_typescript(self):
+        state = {"game": "chess960", "matchId": "00112233-4455-4677-8899-aabbccddeeff", "requesterNonce": "11" * 16, "recipientNonce": "22" * 16}
+        self.assertEqual(self.manager._chess960_position(state), 854)
+        self.assertEqual(self.manager._starter(state), "requester")
+        self.assertEqual(self.manager._initial_state_hash(state), "666121ed8ab3297418e36f989319d7ebed879d87aa50fe386184fe04c92bc0a9")
+        self.assertEqual(len({tuple(chess960_back_rank(i)) for i in range(960)}), 960)
+        self.assertEqual(chess960_back_rank(518), [4, 2, 3, 5, 6, 3, 2, 4])
+
+    def test_timed_move_acknowledgements_keep_both_clocks_in_agreement(self):
+        match_id = "00112233-4455-4677-8899-aabbccddeeff"
+        sender, _ = self.make_manager()
+        receiver, _ = self.make_manager()
+        common = {"matchId": match_id, "roundId": match_id, "game": "chess960", "chessColor": "white", "chessTime": "3+2", "phase": "active", "requester": "one", "recipient": "two", "requesterNonce": "11" * 16, "recipientNonce": "22" * 16}
+        a, b = {**common, "outbound": True}, {**common, "outbound": False}
+        sender.matches[match_id], receiver.matches[match_id] = a, b
+        now = [100.0]
+        for manager, state in ((sender, a), (receiver, b)):
+            clock = manager._clock(state)
+            clock.now = lambda: now[0]
+            manager._clock_snapshot(state)
+        now[0] += 5
+        move = {"type": "MOVE", "messageId": "10000000-0000-4000-8000-000000000001", "ply": 1, "from": 52, "to": 36, "previousStateHash": sender._initial_state_hash(a), "resultingStateHash": "aa" * 32}
+        with mock.patch.object(sender, "_send_game_payload") as transmit:
+            sender._send_active({"matchId": match_id, "message": move})
+        sent = transmit.call_args.args[1]
+        self.assertEqual(sent["clockRemainingMs"], 177000)
+        self.assertLessEqual(len(umsgpack.packb({"k": "game", "m": sent})), MAX_CHANNEL_PAYLOAD)
+        now[0] += 10
+        self.assertEqual(sender._clock_snapshot(a)["remainingMs"][0], 177000)
+        receiver._on_channel(match_id, GameMessage({"k": "game", "m": sent}))
+        ack = {"type": "MOVE_ACK", "messageId": sent["messageId"], "ply": 1, "stateHash": "aa" * 32}
+        with mock.patch.object(receiver, "_send_game_payload") as acknowledge:
+            receiver._send_active({"matchId": match_id, "message": ack})
+        sender._on_channel(match_id, GameMessage({"k": "game", "m": acknowledge.call_args.args[1]}))
+        self.assertEqual(sender._clock_snapshot(a)["remainingMs"], [177000, 180000])
+        self.assertEqual(receiver._clock_snapshot(b)["remainingMs"], [177000, 180000])
+        self.assertEqual(a["transcript"], b["transcript"])
+
+    def test_clock_expiry_notifies_renderer_and_opponent_once(self):
+        manager, events = self.make_manager()
+        match_id = "00112233-4455-4677-8899-aabbccddeeff"
+        state = {"matchId": match_id, "roundId": match_id, "game": "chess", "chessColor": "white", "chessTime": "3+2", "phase": "active", "requester": "one", "recipient": "two", "outbound": True, "requesterNonce": "11" * 16, "recipientNonce": "22" * 16}
+        manager.matches[match_id] = state
+        clock = manager._clock(state)
+        clock.elapsed = 180000
+        with mock.patch.object(manager, "_send_game_payload") as transmit, mock.patch.object(manager, "_schedule_terminal_close"):
+            manager._clock_tick()
+            manager._clock_tick()
+        self.assertEqual(transmit.call_count, 1)
+        self.assertEqual(transmit.call_args.args[1]["reason"], "timeout")
+        timeouts = [payload for kind, payload in events if kind == "GAME_TIMEOUT"]
+        self.assertEqual(len(timeouts), 1)
+        self.assertEqual(timeouts[0]["loser"], 1)
+        self.assertEqual(timeouts[0]["clock"]["remainingMs"][0], 0)
+
+    def test_remote_timeout_finishes_without_a_connected_renderer(self):
+        manager, events = self.make_manager()
+        match_id = "00112233-4455-4677-8899-aabbccddeeff"
+        state = {"matchId": match_id, "roundId": match_id, "game": "chess", "chessColor": "white", "chessTime": "3+2", "phase": "active", "requester": "one", "recipient": "two", "outbound": False, "requesterNonce": "11" * 16, "recipientNonce": "22" * 16}
+        manager.matches[match_id] = state
+        payload = {"k": "game", "m": {"type": "RESIGN", "reason": "timeout", "matchId": match_id, "roundId": match_id, "messageId": "10000000-0000-4000-8000-000000000001"}}
+        with mock.patch.object(manager, "_send_game_payload") as transmit:
+            manager._on_channel(match_id, GameMessage(payload))
+            manager._on_channel(match_id, GameMessage(payload))
+        self.assertEqual(transmit.call_count, 2)
+        self.assertEqual(transmit.call_args.args[1]["type"], "RESIGN_ACK")
+        self.assertEqual(state["phase"], "session_idle")
+        self.assertEqual(manager._public_state(state)["timeoutSeat"], 1)
+
     def test_checkers_move_shape_supports_paths_and_rejects_columns(self):
         state = {
             "game": "checkers", "roundId": "00112233-4455-6677-8899-aabbccddeeff",
@@ -410,6 +480,94 @@ class QortalLandGameProtocolTest(unittest.TestCase):
         raw = MAGIC + umsgpack.packb(packed)
         self.assertLessEqual(len(raw), MAX_CHANNEL_PAYLOAD)
         self.assertEqual(self.manager._decode_handshake(umsgpack.unpackb(raw[4:])), envelope)
+
+        # Color options are appended to the compact, signed invitation. The
+        # original packet shape remains unchanged for random-color games.
+        for color in ("white", "black", "choose"):
+            colored = {**fields, "game": "chess960", "chessColor": color, "chessTime": "15+10"}
+            signed = {
+                "fields": colored, "publicKey": self.public_key,
+                "signature": _b58encode(self.private_key.sign(canonical_bytes(colored))),
+            }
+            raw = MAGIC + umsgpack.packb(self.manager._encode_handshake(signed))
+            self.assertLessEqual(len(raw), MAX_CHANNEL_PAYLOAD)
+            decoded = self.manager._decode_handshake(umsgpack.unpackb(raw[len(MAGIC):]))
+            self.assertEqual(decoded, signed)
+            self.assertTrue(verify_signature(decoded["fields"], self.public_key, decoded["signature"]))
+            self.assertFalse(verify_signature({**colored, "chessColor": "black" if color != "black" else "white"}, self.public_key, decoded["signature"]))
+
+    def test_chess_colors_survive_rematch_and_snapshot(self):
+        for color, selected, expected in (("white", None, "requester"), ("black", None, "recipient"), ("choose", 1, "requester"), ("choose", 2, "recipient")):
+            state = {
+                "game": "chess", "chessColor": color,
+                "requester": "one", "recipient": "two",
+                "matchId": "00112233-4455-4677-8899-aabbccddeeff",
+                "requesterNonce": "11" * 16, "recipientNonce": "22" * 16,
+            }
+            if selected is not None:
+                state["chessWhiteSeat"] = selected
+            self.assertEqual(self.manager._starter(state), expected)
+            initial_hash = self.manager._initial_state_hash(state)
+            self.manager._reset_round(state, "11112233-4455-4677-8899-aabbccddeeff", "33" * 16, "44" * 16)
+            self.assertEqual(self.manager._starter(state), expected)
+            self.assertEqual(self.manager._initial_state_hash(state), initial_hash)
+            snapshot = self.manager._public_state(state)
+            self.assertEqual(snapshot["roundId"], "11112233-4455-4677-8899-aabbccddeeff")
+            self.assertEqual(snapshot["chessColor"], color)
+            self.assertEqual(snapshot.get("chessWhiteSeat"), selected)
+
+    def test_chess_selection_must_be_explicit_and_requested(self):
+        for invalid in (None, True, False, 0, 3, "1"):
+            with self.assertRaisesRegex(ValueError, "invalid_chess_color_selection"):
+                self.manager._validate_chess_selection({"chessColor": "choose"}, invalid)
+        for color in (None, "white", "black"):
+            with self.assertRaisesRegex(ValueError, "unexpected_chess_color_selection"):
+                self.manager._validate_chess_selection({"chessColor": color}, 1)
+        with self.assertRaisesRegex(ValueError, "invalid_chess_color"):
+            self.manager._validate_chess_color("checkers", "white")
+
+    def test_signed_color_choice_agrees_at_both_ends_of_handshake(self):
+        requester_key = RNS.Cryptography.Ed25519PrivateKey.generate()
+        requester_public = _b58encode(requester_key.public_key().public_bytes())
+        requester_address = derive_qortal_address(requester_public)
+        for selected in (1, 2):
+            sender, sender_events = self.make_manager()
+            receiver, receiver_events = self.make_manager()
+            state = {
+                "matchId": "00112233-4455-4677-8899-aabbccddeeff",
+                "game": "chess", "chessColor": "choose",
+                "phase": "awaiting_response", "outbound": True,
+                "requester": requester_address, "requesterPublicKey": requester_public,
+                "recipient": self.address, "requesterNonce": "11" * 16,
+                "inviteHash": "33" * 32, "linkId": "22" * 16,
+                "expiresAt": int(time.time() * 1000) + 60000,
+            }
+            remote = {**state, "phase": "invited", "outbound": False}
+            receiver.land_context = {"address": self.address, "publicKey": self.public_key}
+            receiver.matches[state["matchId"]] = remote
+            receiver._respond({"matchId": state["matchId"], "decision": "accept", "chessWhiteSeat": selected})
+            acceptance = receiver_events[-1][1]["fields"]
+            self.assertEqual(acceptance["chessWhiteSeat"], selected)
+            envelope = {
+                "fields": acceptance, "publicKey": self.public_key,
+                "signature": _b58encode(self.private_key.sign(canonical_bytes(acceptance))),
+            }
+            packet = receiver._encode_handshake(envelope)
+            self.assertLessEqual(len(umsgpack.packb({"k": "handshake", "e": packet})), MAX_CHANNEL_PAYLOAD)
+            sender._handle_handshake(state, sender._decode_handshake(packet))
+            confirmation = sender_events[-1][1]["fields"]
+            self.assertEqual(confirmation["starter"], "requester" if selected == 1 else "recipient")
+            self.assertEqual(confirmation["initialStateHash"], receiver._initial_state_hash(remote))
+            remote.update({"phase": "awaiting_confirm", "acceptEnvelope": envelope})
+            signed_confirm = {
+                "fields": confirmation, "publicKey": requester_public,
+                "signature": _b58encode(requester_key.sign(canonical_bytes(confirmation))),
+            }
+            with mock.patch.object(receiver, "_send_game_payload"):
+                receiver._handle_handshake(remote, signed_confirm)
+            self.assertEqual(remote["phase"], "active")
+            self.assertEqual(receiver_events[-1][0], "GAME_STARTED")
+            self.assertEqual(receiver_events[-1][1]["chessWhiteSeat"], selected)
 
     def test_open_game_link_uses_selected_land_endpoint_when_peer_cache_lags(self):
         manager, _events = self.make_manager()

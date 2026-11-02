@@ -36,7 +36,7 @@ export type QortalLandGameParticipant = {
 export type QortalLandGameMatch = {
   matchId: string;
   groupId: number;
-  gameType: 'connect-four' | 'checkers' | 'chess';
+  gameType: 'connect-four' | 'checkers' | 'chess' | 'chess960';
   rulesVersion: 1;
   requester: QortalLandGameParticipant;
   recipient: QortalLandGameParticipant;

@@ -26,6 +26,70 @@ const match = {
 };
 
 describe('Qortal Land game handshake signing guard', () => {
+  it('binds the signed invitation and acceptance to the selected colors', () => {
+    const current = {
+      ...match,
+      game: 'chess' as const,
+      chessColor: 'choose' as const,
+      chessWhiteSeat: 2 as const,
+      recipientNonce: '22'.repeat(16),
+    };
+    const invite = {
+      type: 'QORTAL_LAND_GAME_INVITE',
+      matchId: match.matchId,
+      requesterAddress: match.requesterAddress,
+      recipientAddress: match.recipientAddress,
+      ...routeFields,
+      signerPublicKey: 'public-key',
+      requesterNonce: match.requesterNonce,
+      protocolVersion: 2,
+      game: 'chess',
+      gameVersion: 1,
+      rulesVersion: 1,
+      chessColor: 'choose',
+    };
+    expect(
+      canSignQortalLandGameHandshake(
+        invite,
+        current,
+        match.requesterAddress,
+        'public-key'
+      )
+    ).toBe(true);
+    expect(
+      canSignQortalLandGameHandshake(
+        { ...invite, chessColor: 'white' },
+        current,
+        match.requesterAddress,
+        'public-key'
+      )
+    ).toBe(false);
+    const accept = {
+      type: 'QORTAL_LAND_GAME_ACCEPT',
+      matchId: match.matchId,
+      responderAddress: match.recipientAddress,
+      signerPublicKey: 'public-key',
+      requesterNonce: match.requesterNonce,
+      recipientNonce: current.recipientNonce,
+      chessWhiteSeat: 2,
+    };
+    expect(
+      canSignQortalLandGameHandshake(
+        accept,
+        current,
+        match.recipientAddress,
+        'public-key'
+      )
+    ).toBe(true);
+    expect(
+      canSignQortalLandGameHandshake(
+        { ...accept, chessWhiteSeat: 1 },
+        current,
+        match.recipientAddress,
+        'public-key'
+      )
+    ).toBe(false);
+  });
   it('allows the locally challenged outgoing invitation', () => {
     expect(canSignQortalLandGameHandshake({
       type: 'QORTAL_LAND_GAME_INVITE',
