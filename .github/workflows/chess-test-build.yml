@@ -33,6 +33,8 @@ jobs:
           go-version: '1.26.x'
       - name: Install renderer dependencies
         run: npm ci
+      - name: Test chess and game compatibility
+        run: npx vitest run src/components/QortalLand/games src/background/reticulum-signing-policy.test.ts
       - name: Build renderer
         run: npm run build
       - name: Sync renderer to Electron
