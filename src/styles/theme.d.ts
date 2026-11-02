@@ -6,6 +6,10 @@ declare module '@mui/material/styles' {
     elevated: string;
   }
   interface Palette {
+    chessBoard?: {
+      light: string;
+      dark: string;
+    };
     border: {
       main: string;
       subtle: string;
@@ -17,6 +21,10 @@ declare module '@mui/material/styles' {
     };
   }
   interface PaletteOptions {
+    chessBoard?: {
+      light: string;
+      dark: string;
+    };
     border?: {
       main?: string;
       subtle?: string;

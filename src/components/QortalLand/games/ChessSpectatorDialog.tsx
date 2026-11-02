@@ -158,7 +158,14 @@ export function ChessSpectatorDialog({
           pb: 2.5,
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            minWidth: 0,
+          }}
+        >
           <Typography sx={{ color: 'text.secondary', fontSize: 13, mb: 0.75 }}>
             {t('group:qortal_land.games.chess_spectator.black_player', {
               name: blackName,
@@ -170,11 +177,10 @@ export function ChessSpectatorDialog({
             sx={{
               aspectRatio: '1 / 1',
               display: 'grid',
+              flex: '0 0 auto',
               gridTemplateColumns: 'repeat(8, minmax(0, 1fr))',
               gridTemplateRows: 'repeat(8, minmax(0, 1fr))',
-              maxHeight: 'min(64dvh, 680px)',
-              maxWidth: 680,
-              width: '100%',
+              width: 'min(100%, 64dvh, 680px)',
             }}
           >
             {state.board.map((piece, index) => {
@@ -193,8 +199,10 @@ export function ChessSpectatorDialog({
                   sx={(theme) => ({
                     alignItems: 'center',
                     backgroundColor: dark
-                      ? theme.palette.grey[500]
-                      : theme.palette.grey[200],
+                      ? (theme.palette.chessBoard?.dark ??
+                        theme.palette.success.main)
+                      : (theme.palette.chessBoard?.light ??
+                        theme.palette.success.light),
                     display: 'flex',
                     justifyContent: 'center',
                     minHeight: 0,

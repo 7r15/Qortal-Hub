@@ -4,6 +4,11 @@ import {
   getBlueTier1ButtonSx,
 } from './blueMaterial';
 
+export const chessBoardColors = {
+  dark: '#779556',
+  light: '#ebecd0',
+};
+
 /**
  * Returns the common MuiCssBaseline global styles shared by both themes.
  * Each theme should merge its own `:root` CSS variables with this result.
