@@ -91,6 +91,41 @@ async function ready(gameId: 'chess' | 'chess960' = 'chess') {
 }
 
 describe('chess invitation controls', () => {
+  it.each(
+    (['chess', 'chess960'] as const).flatMap((game) =>
+      ([undefined, 'white', 'black', 'choose'] as const).map((color) => ({
+        game,
+        color,
+      }))
+    )
+  )(
+    'keeps a $game invitation with $color open before signing',
+    async ({ game, color }) => {
+      await ready(game);
+      await act(async () =>
+        receive({
+          type: 'GAME_SNAPSHOT',
+          matchId: '00112233-4455-4677-8899-aabbccddeeff',
+          game,
+          ...(color ? { chessColor: color } : {}),
+          chessTime: '5+3',
+          requesterAddress: 'one',
+          recipientAddress: 'two',
+          requesterNonce: '11'.repeat(16),
+          recipientNonce: null,
+          phase: 'awaiting_invite_signature',
+          transcript: [],
+          expiresAt: Date.now() + 60000,
+        })
+      );
+      await waitFor(() =>
+        expect(screen.getByText(prefix + 'preparing')).toBeInTheDocument()
+      );
+      expect(qortalLandRealtime.send).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'CLOSE_GAME_LINK' })
+      );
+    }
+  );
   it('shows zero and a time win when the remote clock expires', async () => {
     await ready();
     const matchId = '00112233-4455-4677-8899-aabbccddeeff';

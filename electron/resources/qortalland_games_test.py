@@ -14,6 +14,7 @@ from qortalland_games import (
     MAX_CHANNEL_PAYLOAD,
     QortalLandGameManager,
     _b58encode,
+    CHESS_TIME_CONTROLS,
     canonical_bytes,
     chess960_back_rank,
     derive_qortal_address,
@@ -449,6 +450,66 @@ class QortalLandGameProtocolTest(unittest.TestCase):
             self.manager._validate_move_shape(state, {**move, "promotion": []})
         with self.assertRaisesRegex(ValueError, "invalid_chess_move"):
             self.manager._validate_move_shape(state, {**move, "promotion": True})
+
+    def test_chess_invitations_reach_recipient_with_every_option(self):
+        recipient_key = RNS.Cryptography.Ed25519PrivateKey.generate()
+        recipient_public = _b58encode(recipient_key.public_key().public_bytes())
+        recipient_address = derive_qortal_address(recipient_public)
+        for game in ("chess", "chess960"):
+            for color in (None, "white", "black", "choose"):
+                for preset in (None, *CHESS_TIME_CONTROLS):
+                    with self.subTest(game=game, color=color, preset=preset):
+                        sender, sender_events = self.make_manager()
+                        receiver, receiver_events = self.make_manager()
+                        sender.land_context = {
+                            "address": self.address, "publicKey": self.public_key,
+                            "groupId": "123", "landSessionId": "source-session",
+                            "localDestinationHash": "11" * 16,
+                        }
+                        receiver.land_context = {
+                            "address": recipient_address, "publicKey": recipient_public,
+                            "groupId": "123", "landSessionId": "target-session",
+                            "localDestinationHash": "aa" * 16,
+                        }
+                        command = {
+                            "matchId": "00112233-4455-4677-8899-aabbccddeeff",
+                            "recipientAddress": recipient_address,
+                            "targetSessionId": "target-session",
+                            "targetDestinationHash": "aa" * 16,
+                            "requesterNonce": "11" * 16, "game": game,
+                            **({"chessColor": color} if color else {}),
+                            **({"chessTime": preset} if preset else {}),
+                        }
+                        # Advance time across millisecond boundaries while opening.
+                        # Every invitation must still satisfy its own lifetime limit.
+                        now = time.time()
+                        ticks = iter(now + i / 1000 for i in range(100))
+                        with mock.patch("qortalland_games.time.time", side_effect=lambda: next(ticks)), mock.patch(
+                            "qortalland_games.threading.Timer"
+                        ), mock.patch.object(sender, "_attempt_open"):
+                            sender._open(command)
+                        state = sender.matches[command["matchId"]]
+                        link = mock.Mock()
+                        state.update({"link": link, "linkId": "22" * 16})
+                        fields = sender._invite_fields(state)
+                        sender._require_signature(state, fields["type"], fields)
+                        challenge = sender_events[-1][1]
+                        with mock.patch.object(sender, "_send_raw", return_value=True) as send_raw:
+                            sender._submit_signature({
+                                "challengeId": challenge["challengeId"],
+                                "publicKey": self.public_key,
+                                "signature": _b58encode(self.private_key.sign(canonical_bytes(fields))),
+                            })
+                        raw = send_raw.call_args.args[1]
+                        with mock.patch.object(receiver, "_configure_channel"):
+                            self.assertTrue(receiver.handle_classifier(link, raw))
+                        link.teardown.assert_not_called()
+                        invitation = next(payload for event, payload in receiver_events if event == "GAME_INVITE_RECEIVED")
+                        self.assertEqual(invitation["game"], game)
+                        self.assertEqual(invitation.get("chessColor"), color)
+                        self.assertEqual(invitation.get("chessTime"), preset)
+                        receiver._clock_tick()
+                        self.assertEqual(receiver.matches[state["matchId"]]["phase"], "invited")
 
     def test_compact_invite_round_trip_fits_classifier_packet(self):
         fields = {

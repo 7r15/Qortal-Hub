@@ -749,6 +749,7 @@ class QortalLandGameManager:
             self.resolve_peer(recipient, target_destination_hash)
             or target_destination_hash
         )
+        created_at = int(time.time() * 1000)
         state = {
             "matchId": match_id,
             "roundId": match_id,
@@ -770,8 +771,8 @@ class QortalLandGameManager:
             "outbound": True,
             "establishDeadline": time.time() + LINK_TIMEOUT,
             "openAttempts": 0,
-            "createdAt": int(time.time() * 1000),
-            "expiresAt": int((time.time() + INVITE_TTL) * 1000),
+            "createdAt": created_at,
+            "expiresAt": created_at + INVITE_TTL * 1000,
             "transcript": [],
             "lastActivity": time.time(),
             "lastRx": time.time(),

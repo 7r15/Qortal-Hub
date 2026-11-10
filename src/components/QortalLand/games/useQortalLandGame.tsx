@@ -1136,7 +1136,12 @@ export function useQortalLandGame(options: Options) {
       const transportPhase = String(event.phase || '');
       const eventGame = isGameId(event.game) ? event.game : matchRef.current?.game || 'connect-four';
       const chatMessages = parseChatMessages(event.chatMessages);
-      if (['establishing', 'awaiting_response', 'invited'].includes(transportPhase)) {
+      if ([
+        'establishing',
+        'awaiting_invite_signature',
+        'awaiting_response',
+        'invited',
+      ].includes(transportPhase)) {
         replaceMatch({
           matchId: String(event.matchId),
           game: eventGame,
@@ -1152,7 +1157,11 @@ export function useQortalLandGame(options: Options) {
           recipientNonce: /^[0-9a-f]{32}$/i.test(recipientNonce) ? recipientNonce : undefined,
           requesterName: requesterAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(requesterAddress),
           recipientName: recipientAddress === address ? t('group:qortal_land.games.player.you') : resolvePlayerName?.(recipientAddress),
-          phase: transportPhase === 'establishing' ? 'opening' : transportPhase === 'awaiting_response' ? 'waiting' : 'incoming',
+          phase: transportPhase === 'invited'
+            ? 'incoming'
+            : transportPhase === 'awaiting_response'
+              ? 'waiting'
+              : 'opening',
           moves: [],
           chatMessages,
           expiresAt: typeof event.expiresAt === 'number' ? event.expiresAt : undefined,
